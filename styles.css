@@ -1,0 +1,517 @@
+/* Yohocat Studio — styles.css · mobile-first · sin animaciones (todo vive en GSAP) */
+
+:root {
+  --blue: #356B8C;
+  --sky: #A8D6E5;
+  --green: #90A955;
+  --yellow: #FFC971;
+  --orange: #FCAE59;
+  --brown: #B08968;
+  --deep: #1d3b4d;
+  --navy: #254b62;
+  --white: #fff;
+  --ink: color-mix(in srgb, var(--blue) 55%, black);
+  --shadow-rgb: 0 25 40;
+  --shadow-sm: rgb(var(--shadow-rgb)/.35);
+  --shadow-text: rgb(var(--shadow-rgb)/.55);
+  --font-display: "Silkscreen", "Courier New", monospace;
+  --font-body: "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --radius: 4px;
+  --border: 3px;
+  --tap-size: 48px;
+  --max: 1100px;
+  --orb: 104px;
+  --orb-start: clamp(150px, 46vw, 190px);
+  --boat-w: clamp(140px, 44vw, 190px);
+  --marker-col: .5fr;
+  --card-col: 1.5fr;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0
+}
+
+html {
+  padding-block: env(safe-area-inset-top, 0) env(safe-area-inset-bottom, 0);
+  scroll-padding-top: env(safe-area-inset-top, 0);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  padding-inline: env(safe-area-inset-left, 0) env(safe-area-inset-right, 0);
+  background: var(--deep);
+  color: var(--white);
+  font: clamp(1rem, .96rem + .2vw, 1.1rem)/1.6 var(--font-body);
+  overflow-x: hidden;
+}
+
+a {
+  color: inherit
+}
+
+.svg-defs {
+  position: absolute;
+  width: 0;
+  height: 0
+}
+
+/* Mar y paradas */
+.sea {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1
+}
+
+.main {
+  position: relative
+}
+
+/* Camino punteado del barco (lo crea main.js) */
+.trail {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none
+}
+
+.trail-dots {
+  fill: none;
+  stroke: var(--orange);
+  stroke-width: 7.5;
+  stroke-linecap: round;
+  stroke-dasharray: .5 32
+}
+
+.stop {
+  position: relative;
+  display: grid;
+  grid-template-areas: "marker" "card";
+  row-gap: 5vh;
+  padding: 18vh max(5vw, calc((100% - var(--max))/2));
+}
+
+.stop .buoy {
+  justify-self: start
+}
+
+.stop.flip .buoy {
+  justify-self: end
+}
+
+/* Acento por parada (boya, arena, etiqueta, frentes, chips) */
+.stop--hero {
+  --accent: var(--sky)
+}
+
+.stop--who {
+  --accent: var(--yellow)
+}
+
+.stop--mission {
+  --accent: var(--green)
+}
+
+.stop--vision {
+  --accent: var(--orange)
+}
+
+.stop--what {
+  --accent: var(--brown)
+}
+
+.stop--contact {
+  --accent: var(--yellow)
+}
+
+/* Boyas y barco */
+.buoy {
+  grid-area: marker;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: var(--orb);
+  height: var(--orb);
+  border: 2px dashed rgb(255 255 255/.85);
+  border-radius: 50%;
+  filter: drop-shadow(0 2px 6px var(--shadow-sm));
+}
+
+.buoy--start {
+  width: var(--orb-start);
+  height: var(--orb-start)
+}
+
+/* Onda de la boya activa (creada y animada por GSAP) */
+.ripple {
+  position: absolute;
+  inset: -2px;
+  border: 2px solid rgb(255 255 255/.8);
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.marker {
+  display: grid;
+  place-items: center;
+  width: 68%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: rgb(255 255 255/.78);
+  color: var(--navy);
+}
+
+.marker svg {
+  width: 52%;
+  aspect-ratio: 1;
+  fill: currentColor;
+  shape-rendering: crispEdges
+}
+
+.boat {
+  position: relative;
+  z-index: 10;
+  width: var(--boat-w);
+  pointer-events: none;
+  will-change: transform
+}
+
+.logo-boat {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  filter: drop-shadow(0 8px 8px rgb(255 255 255/.35));
+  /* fill y stroke se heredan a todos los hijos */
+  fill: #231f20;
+  stroke: #231f20;
+  stroke-miterlimit: 10;
+}
+
+.logo-boat .yc-2 {
+  stroke-width: .25px
+}
+
+.logo-boat .yc-3 {
+  stroke: none
+}
+
+.logo-boat .yc-4 {
+  fill: none;
+  stroke-width: 8px;
+  stroke-linecap: round
+}
+
+/* Islas */
+.island {
+  grid-area: card;
+  justify-self: center;
+  position: relative;
+  width: 100%;
+  max-width: 720px
+}
+
+.island-float {
+  position: relative
+}
+
+.island-shape {
+  position: absolute;
+  left: -5%;
+  top: -6%;
+  width: 110%;
+  height: 112%;
+  overflow: visible;
+  filter: drop-shadow(0 16px 16px var(--shadow-sm));
+}
+
+.i-lagoon {
+  fill: color-mix(in srgb, var(--sky) 50%, transparent)
+}
+
+.i-foam {
+  fill: var(--white)
+}
+
+.i-sand {
+  fill: var(--accent)
+}
+
+.i-land {
+  fill: color-mix(in srgb, var(--yellow) 20%, white)
+}
+
+.palm {
+  position: absolute;
+  top: clamp(-100px, -12vw, -88px);
+  right: 26%;
+  z-index: 2;
+  width: clamp(128px, 24vw, 168px);
+  height: clamp(152px, 28vw, 196px);
+  overflow: visible;
+  pointer-events: none;
+}
+
+.flip .palm {
+  right: auto;
+  left: 26%
+}
+
+.island-body {
+  position: relative;
+  z-index: 1;
+  padding: 6rem clamp(2.1rem, 11vw, 5rem) 4.2rem;
+  color: var(--ink)
+}
+
+.island-body h2 {
+  margin-bottom: 1rem;
+  font: 700 clamp(1.2rem, 1rem + 1.6vw, 1.8rem)/1.2 var(--font-display);
+  overflow-wrap: break-word;
+}
+
+.island-body p {
+  max-width: 58ch
+}
+
+.island-body p+p {
+  margin-top: .9rem
+}
+
+/* Hero */
+.stop--hero {
+  min-height: 100svh;
+  grid-template-areas: "card" "marker";
+  justify-items: center;
+  padding-block: 9vh 12vh;
+  text-align: center;
+}
+
+.stop--hero .buoy {
+  justify-self: center
+}
+
+.hero-text {
+  grid-area: card;
+  width: 100%;
+  max-width: 720px;
+  text-shadow: 0 2px 14px var(--shadow-text)
+}
+
+.hero-title {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  column-gap: .35em;
+  font: 700 clamp(2.4rem, 11.5vw, 6.6rem)/1 var(--font-display);
+  letter-spacing: .02em;
+}
+
+.hero-title .sub {
+  font-size: clamp(1.2rem, 5.75vw, 3.3rem)
+}
+
+.hero-word {
+  display: inline-flex
+}
+
+.hero-letter {
+  display: inline-block;
+  text-shadow: .06em .06em 0 var(--c)
+}
+
+.hero-sub {
+  margin-top: .8rem;
+  font: clamp(1rem, .8rem + 1.6vw, 1.6rem) var(--font-display);
+  color: var(--sky)
+}
+
+.hero-lead {
+  max-width: 46ch;
+  margin: 1.4rem auto 0;
+  font-size: clamp(1.05rem, 1rem + .3vw, 1.2rem);
+  font-weight: 600;
+}
+
+.scroll-hint {
+  display: none;
+  position: absolute;
+  left: 50%;
+  bottom: 4vh;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 90%;
+  text-align: center;
+  font: .8rem var(--font-display);
+  text-shadow: 0 2px 8px var(--shadow-text);
+}
+
+/* Componentes */
+.tag {
+  display: inline-block;
+  margin-bottom: 1rem;
+  padding: .2rem .6rem;
+  font: .85rem var(--font-display);
+  background: var(--accent);
+  color: var(--ink);
+  border-radius: 3px;
+}
+
+.paths {
+  display: grid;
+  gap: 1rem;
+  margin: .4rem 0 1.4rem
+}
+
+.path {
+  padding-left: 1rem;
+  border-left: 6px solid var(--accent)
+}
+
+.path h3 {
+  margin-bottom: .2rem;
+  font: 1.05rem var(--font-display)
+}
+
+.method-title {
+  margin-bottom: .6rem;
+  font-weight: 800
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  list-style: none
+}
+
+.chip {
+  padding: .25rem .75rem;
+  font-size: .9rem;
+  font-weight: 800;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+/* Botones (contacto y "volver al inicio") */
+.links a,
+.to-top {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--tap-size);
+  font: inherit;
+  font-weight: 800;
+  text-decoration: none;
+  background: var(--yellow);
+  color: var(--ink);
+  border: var(--border) solid var(--ink);
+  border-radius: var(--radius);
+}
+
+.links {
+  display: flex;
+  flex-direction: column;
+  gap: .8rem;
+  margin-top: 1.4rem;
+  list-style: none
+}
+
+.links a {
+  width: 100%;
+  padding: .55rem 1rem;
+  text-align: center;
+  overflow-wrap: anywhere
+}
+
+.site-footer {
+  min-height: 26vh;
+  display: flex;
+  flex-direction: column;
+  gap: .8rem;
+  justify-content: center;
+  align-items: center;
+  padding: 0 1rem 2rem;
+  text-align: center;
+  font-size: .95rem;
+}
+
+.site-footer p {
+  padding: .5rem 1.2rem;
+  font-weight: 700;
+  background: rgb(255 255 255/.9);
+  color: var(--ink);
+  border-radius: 999px;
+}
+
+.to-top {
+  padding: .35rem 1rem;
+  cursor: pointer
+}
+
+/* Tablet y escritorio */
+@media (min-width:761px) {
+  :root {
+    --orb: clamp(104px, 16vw, 130px);
+    --orb-start: clamp(150px, 44vw, 200px);
+    --boat-w: clamp(150px, 46vw, 250px);
+  }
+
+  .stop {
+    min-height: 100svh;
+    grid-template-columns: minmax(0, var(--marker-col)) minmax(0, var(--card-col));
+    grid-template-areas: "marker card";
+    align-items: center;
+    column-gap: clamp(1rem, 3vw, 3rem);
+    padding-block: 12vh;
+  }
+
+  .stop.flip {
+    grid-template-columns: minmax(0, var(--card-col)) minmax(0, var(--marker-col));
+    grid-template-areas: "card marker";
+  }
+
+  .stop .buoy {
+    justify-self: center
+  }
+
+  .stop--hero {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "card" "marker";
+    row-gap: 5vh;
+    padding-block: 10vh 13vh;
+  }
+
+  .links {
+    flex-direction: row;
+    flex-wrap: wrap
+  }
+
+  .links a {
+    width: auto
+  }
+}
+
+@media (min-width:1025px) {
+  :root {
+    --orb: 140px;
+    --marker-col: .6fr;
+    --card-col: 1.4fr
+  }
+}
+
+@media (min-width:761px) and (min-height:761px) {
+  .scroll-hint {
+    display: block
+  }
+}
