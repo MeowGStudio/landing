@@ -183,17 +183,24 @@ function initBoatJourney(islandCtl) {
         return { appearAt, disappearAt };
       });
 
+      const showIsland = (c) => {
+        if (c.state.shown) return;
+        c.state.shown = true;
+        c.entry.timeScale(ENTRY_PLAY).play();
+        c.syncLoops();
+      };
+
       const syncIslands = (boatY) => {
         const n = Math.min(islandCtl.length, windows.length);
         for (let i = 0; i < n; i++) {
           const c = islandCtl[i];
           const w = windows[i];
-          const shouldShow = boatY >= w.appearAt && boatY < w.disappearAt;
+          const isLast = i === n - 1;
+          /* La última isla no se vuelve a ocultar nunca: no tiene "después". */
+          const shouldShow = boatY >= w.appearAt && (isLast || boatY < w.disappearAt);
           if (shouldShow && !c.state.shown) {
-            c.state.shown = true;
-            c.entry.timeScale(ENTRY_PLAY).play();
-            c.syncLoops();
-          } else if (!shouldShow && c.state.shown) {
+            showIsland(c);
+          } else if (!shouldShow && c.state.shown && !isLast) {
             c.state.shown = false;
             c.entry.timeScale(ENTRY_REV).reverse();
             c.syncLoops();
@@ -224,6 +231,21 @@ function initBoatJourney(islandCtl) {
             syncIslands(y);
           },
         }, 0);
+
+      const lastCtl = islandCtl[islandCtl.length - 1];
+      if (lastCtl?.el) {
+        const reveal = () => showIsland(lastCtl);
+        ScrollTrigger.create({
+          trigger: lastCtl.el,
+          start: "top 92%",
+          end: "bottom top",
+          onEnter: reveal,
+          onEnterBack: reveal,
+        });
+
+        const r = lastCtl.el.getBoundingClientRect();
+        if (r.top < innerHeight * .92) reveal();
+      }
 
       requestAnimationFrame(() => {
         const y = gsap.getProperty(boat, "y") || 0;
@@ -309,7 +331,7 @@ function initIslands() {
       onToggle: (self) => { state.onScreen = self.isActive; syncLoops(); },
     });
 
-    controllers.push({ entry, state, syncLoops });
+    controllers.push({ el: island, entry, state, syncLoops });
   });
 
   return controllers;
@@ -371,31 +393,17 @@ function initBuoys() {
 }
 
 function initSea() {
-  gsap.timeline({
-    defaults: { ease: "none" },
-    scrollTrigger: {
-      trigger: document.body, start: "top top", end: "bottom bottom",
-      scrub: 1.2, fastScrollEnd: true,
-    }
-  }).to(".sea .parallax", {
-    x: (_, g) => -g.dataset.depth * 7,
-    y: (_, g) => -g.dataset.depth * 5
-  }, 0);
-
-  const idles = gsap.utils.toArray(".sea .idle").map((g, i) =>
+  gsap.utils.toArray(".sea .idle").forEach((g, i) => {
+    const dir = i % 2 ? 1 : -1;
+    const amp = 30 + i * 6;
     gsap.to(g, {
-      x: (i % 2 ? 1 : -1) * 14, y: 10,
-      duration: 5 + i * .7, yoyo: true, repeat: -1,
-      ease: "sine.inOut", paused: true,
-    })
-  );
-  const sea = document.querySelector(".sea");
-  if (sea) {
-    ScrollTrigger.create({
-      trigger: sea, start: "top bottom", end: "bottom top",
-      onToggle: (self) => idles.forEach((t) => self.isActive ? t.play() : t.pause()),
+      x: dir * amp,
+      y: 18 + i * 3,
+      duration: 4.5 + i * .6,
+      yoyo: true, repeat: -1,
+      ease: "sine.inOut",
     });
-  }
+  });
 }
 
 
