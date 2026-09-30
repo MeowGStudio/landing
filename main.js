@@ -339,7 +339,10 @@ if (window.gsap && window.ScrollTrigger && window.MotionPathPlugin && !REDUCED) 
   /* force3D: los elementos animados no "saltan" al terminar el tween */
   gsap.config({ force3D: true });
   /* ignoreMobileResize: la barra del navegador móvil no debe disparar recálculos */
-  ScrollTrigger.config({ ignoreMobileResize: true });
+  ScrollTrigger.config({
+    ignoreMobileResize: true,
+    limitCallbacks: true   // reduce la frecuencia de callbacks en móvil
+  });
 
   initBoatJourney();
   initHeroIntro();
