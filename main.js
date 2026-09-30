@@ -36,7 +36,6 @@ function decorateBuoys() {
     return `<svg viewBox="0 0 8 8" aria-hidden="true">${rects}</svg>`;
   };
   STOP_BUOYS.forEach((buoy) => {
-    /* El ripple es un elemento real (no ::after) para que GSAP pueda animarlo */
     const r = document.createElement("span");
     r.className = "ripple";
     r.setAttribute("aria-hidden", "true");
@@ -57,7 +56,7 @@ function decorateHeroTitle() {
       s.textContent = ch;
       word.appendChild(s);
     });
-    n++; // el espacio entre palabras
+    n++;
   });
 }
 
@@ -85,24 +84,48 @@ const centerOf = (el) => {
   return { x: r.left + r.width / 2 + scrollX, y: r.top + r.height / 2 + scrollY };
 };
 
-/* Crea el SVG del camino y devuelve las piezas del timeline + el origen en .main */
 function mountTrail(main, boat) {
-  main.querySelector(".trail")?.remove();
-  const svg = svgEl("svg", { class: "trail", "aria-hidden": "true" });
-  svg.innerHTML = `<defs><mask id="trailMask" maskUnits="userSpaceOnUse" x="0" y="0"
-      width="${main.offsetWidth}" height="${main.offsetHeight}">
-      <g class="trail-mask"></g></mask></defs>
-    <path class="trail-dots" mask="url(#trailMask)"></path>`;
-  main.prepend(svg);
-  const mr = main.getBoundingClientRect(), br = boat.getBoundingClientRect();
+  main.querySelector(".trail-clip")?.remove();
+  if (getComputedStyle(main).position === "static") main.style.position = "relative";
+
+  const mr = main.getBoundingClientRect();
+  const br = boat.getBoundingClientRect();
+  const w = main.offsetWidth;
+  const h = main.offsetHeight;
+
+  const wrap = document.createElement("div");
+  wrap.className = "trail-clip";
+  wrap.setAttribute("aria-hidden", "true");
+  wrap.style.cssText =
+    "position:absolute;left:0;top:0;width:100%;height:100%;" +
+    "overflow:hidden;pointer-events:none;" +
+    "will-change:clip-path;clip-path:inset(0px 0px " + h + "px 0px);";
+
+  const svg = svgEl("svg", {
+    class: "trail",
+    width: w, height: h,
+    viewBox: `0 0 ${w} ${h}`,
+    preserveAspectRatio: "none",
+  });
+  svg.style.cssText = "position:absolute;left:0;top:0;width:100%;height:100%;";
+
+  const dots = svgEl("path", { class: "trail-dots" });
+  svg.appendChild(dots);
+  wrap.appendChild(svg);
+  main.prepend(wrap);
+
   return {
-    maskG: svg.querySelector(".trail-mask"),
-    dots: svg.querySelector(".trail-dots"),
-    origin: { x: br.left + br.width / 2 - mr.left, y: br.top + br.height / 2 - mr.top }
+    wrap,
+    dots,
+    mainH: h,
+    origin: {
+      x: br.left + br.width / 2 - mr.left,
+      y: br.top + br.height / 2 - mr.top,
+    },
   };
 }
 
-function initBoatJourney() {
+function initBoatJourney(islandCtl) {
   const main = document.querySelector(".main");
   const boat = document.querySelector(".boat");
   const boatLogo = boat?.querySelector(".logo-boat");
@@ -120,63 +143,101 @@ function initBoatJourney() {
       if (!points.length) return;
 
       const total = Math.max(points.at(-1).y, 1);
-      const { maskG, dots, origin } = mountTrail(main, boat);
-      let d = `M${origin.x} ${origin.y}`;
+      const { wrap, dots, origin, mainH } = mountTrail(main, boat);
 
-      /* Inclinación del barco: se calcula solo al avanzar el scroll y vuelve a 0 al detenerse */
-      const tilt = gsap.quickTo(boatLogo, "rotation", { duration: .6, ease: "power3.out" });
-      const settle = gsap.delayedCall(.12, () => tilt(0));
+      const isMobile = innerWidth <= 760;
+      const ENTRY_PLAY = isMobile ? 0.55 : 1;
+      const ENTRY_REV = isMobile ? 0.85 : 1.4;
+
+      let relD = "M0 0";
+      let absD = `M${origin.x} ${origin.y}`;
+      let prev = { x: 0, y: 0 };
+      for (const p of points) {
+        const dy = Math.max(p.y - prev.y, 1);
+        const c1x = prev.x, c1y = prev.y + dy * .55;
+        const c2x = p.x, c2y = p.y - dy * .55;
+        relD += ` C${c1x} ${c1y} ${c2x} ${c2y} ${p.x} ${p.y}`;
+        absD +=
+          ` C${c1x + origin.x} ${c1y + origin.y}` +
+          ` ${c2x + origin.x} ${c2y + origin.y}` +
+          ` ${p.x + origin.x} ${p.y + origin.y}`;
+        prev = p;
+      }
+      dots.setAttribute("d", absD);
+
+      const tilt = gsap.quickTo(boatLogo, "rotation", { duration: .5, ease: "power2.out" });
       let lastX = 0;
 
-      const tl = gsap.timeline({
-        defaults: { ease: "none" },
-        scrollTrigger: {
-          trigger: ".buoy--start", start: "clamp(center center)",
-          end: () => "+=" + total, scrub: 1
-        },
-        onUpdate: () => {
-          const x = gsap.getProperty(boat, "x");
-          tilt(gsap.utils.clamp(-14, 14, (x - lastX) * 1.6));
-          lastX = x;
-          settle.restart(true);
-        }
+      const syncClip = (boatY) => {
+        const clipTop = origin.y + boatY;
+        const clipBottom = Math.max(0, mainH - clipTop);
+        wrap.style.clipPath = `inset(0px 0px ${clipBottom}px 0px)`;
+      };
+
+      const pad = isMobile ? .08 : 0;
+      const windows = points.map((p, i) => {
+        const prevY = i > 0 ? points[i - 1].y : 0;
+        const nextY = i < points.length - 1 ? points[i + 1].y : Infinity;
+        const appearAt = (prevY + p.y) / 2 - pad * (p.y - prevY);
+        const disappearAt = (p.y + nextY) / 2 + pad * (nextY - p.y);
+        return { appearAt, disappearAt };
       });
 
-      points.reduce((prev, p) => {
-        const dy = Math.max(p.y - prev.y, 1);
-        const c1 = { x: prev.x, y: prev.y + dy * .55 };
-        const c2 = { x: p.x, y: p.y - dy * .55 };
+      const syncIslands = (boatY) => {
+        const n = Math.min(islandCtl.length, windows.length);
+        for (let i = 0; i < n; i++) {
+          const c = islandCtl[i];
+          const w = windows[i];
+          const shouldShow = boatY >= w.appearAt && boatY < w.disappearAt;
+          if (shouldShow && !c.state.shown) {
+            c.state.shown = true;
+            c.entry.timeScale(ENTRY_PLAY).play();
+            c.syncLoops();
+          } else if (!shouldShow && c.state.shown) {
+            c.state.shown = false;
+            c.entry.timeScale(ENTRY_REV).reverse();
+            c.syncLoops();
+          }
+        }
+      };
 
-        /* Barco: una curva por tramo */
-        tl.to(boat, { duration: dy, motionPath: { path: [prev, c1, c2, p], type: "cubic" } });
+      gsap.timeline({
+        defaults: { ease: "none" },
+        scrollTrigger: {
+          trigger: ".buoy--start",
+          start: "clamp(center center)",
+          end: () => "+=" + total,
+          scrub: 1,
+          fastScrollEnd: true,
+        },
+      })
+        .to(boat, {
+          duration: total,
+          motionPath: { path: relD, align: false, autoRotate: false },
+          onUpdate: () => {
+            const x = gsap.getProperty(boat, "x");
+            const y = gsap.getProperty(boat, "y");
+            const vx = x - lastX;
+            lastX = x;
+            tilt(gsap.utils.clamp(-14, 14, vx * 1.6));
+            syncClip(y);
+            syncIslands(y);
+          },
+        }, 0);
 
-        /* Camino: mismo tramo en coordenadas de .main, revelado con una máscara */
-        const seg = `C${c1.x + origin.x} ${c1.y + origin.y} ${c2.x + origin.x} ${c2.y + origin.y} ${p.x + origin.x} ${p.y + origin.y}`;
-        d += ` ${seg}`;
-        const reveal = svgEl("path", {
-          d: `M${prev.x + origin.x} ${prev.y + origin.y} ${seg}`,
-          fill: "none", stroke: "#fff", "stroke-width": 20
-        });
-        maskG.appendChild(reveal);
-        const len = reveal.getTotalLength();
-        /* "<" = arranca con el tween del barco; misma duración = mismo avance */
-        tl.fromTo(reveal,
-          { strokeDasharray: len, strokeDashoffset: len },
-          { strokeDasharray: len, strokeDashoffset: 0, duration: dy }, "<");
-        return p;
-      }, { x: 0, y: 0 });
-
-      dots.setAttribute("d", d);
+      requestAnimationFrame(() => {
+        const y = gsap.getProperty(boat, "y") || 0;
+        syncClip(y);
+        syncIslands(y);
+      });
     });
   }
 
-  /* Se construye cuando cargan página y fuentes (ambas alteran alturas) */
   const loaded = document.readyState === "complete"
     ? Promise.resolve()
     : new Promise((r) => addEventListener("load", r, { once: true }));
   Promise.all([loaded, document.fonts?.ready]).then(build);
 
-  /* Recalcular solo si cambia el ANCHO: la barra del navegador móvil no cuenta */
   let t, lastW = innerWidth;
   addEventListener("resize", () => {
     if (innerWidth === lastW) return;
@@ -187,13 +248,80 @@ function initBoatJourney() {
 }
 
 
+/* ── Islas ──────────────────────────────────────────────────────────────── */
+
+function initIslands() {
+  const islands = gsap.utils.toArray(".island");
+  const controllers = [];
+
+  islands.forEach((island, i) => {
+    const float = island.querySelector(".island-float");
+    const shape = island.querySelector(".island-shape");
+    const palm = island.querySelector(".palm");
+    const bodyItems = island.querySelectorAll(".island-body > *");
+    if (!float || !shape) return;
+
+    gsap.set(shape, {
+      willChange: "transform", force3D: true, backfaceVisibility: "hidden",
+    });
+    gsap.set(palm, {
+      willChange: "transform", force3D: true, backfaceVisibility: "hidden",
+    });
+
+    gsap.set(island, { autoAlpha: 0 });
+    gsap.set(shape, { scale: .5, y: 70, transformOrigin: "50% 60%" });
+    gsap.set(palm, { scale: 0, transformOrigin: "50% 100%" });
+    if (bodyItems.length) gsap.set(bodyItems, { autoAlpha: 0, y: 12 });
+
+    const entry = gsap.timeline({ paused: true });
+    entry
+      .to(island, { autoAlpha: 1, duration: .5, ease: "none" }, 0)
+      .to(shape, { scale: 1, y: 0, duration: 1.15, ease: "power3.out" }, 0)
+      .to(palm, { scale: 1, duration: .5, ease: "power3.out" }, "-=.6");
+    if (bodyItems.length) {
+      entry.to(bodyItems, {
+        autoAlpha: 1, y: 0,
+        stagger: .04, duration: .35, ease: "power2.out",
+      }, "-=.5");
+    }
+
+    const bobT = gsap.to(float, {
+      y: 9, duration: 2.6 + i * .35,
+      yoyo: true, repeat: -1, ease: "sine.inOut", paused: true,
+    });
+    const palmT = gsap.fromTo(palm,
+      { rotation: -3 },
+      {
+        rotation: 3, transformOrigin: "50% 100%",
+        duration: 2.2 + i * .2,
+        yoyo: true, repeat: -1, ease: "sine.inOut", paused: true,
+      });
+
+    const state = { shown: false, onScreen: false };
+    const syncLoops = () => {
+      const active = state.shown && state.onScreen;
+      if (active) { bobT.play(); palmT.play(); }
+      else { bobT.pause(); palmT.pause(); }
+    };
+
+    ScrollTrigger.create({
+      trigger: island, start: "top bottom", end: "bottom top",
+      onToggle: (self) => { state.onScreen = self.isActive; syncLoops(); },
+    });
+
+    controllers.push({ entry, state, syncLoops });
+  });
+
+  return controllers;
+}
+
+
 /* ── Animaciones ambientales ────────────────────────────────────────────── */
 
 function initHeroIntro() {
   const letters = gsap.utils.toArray(".hero-letter");
   const copy = gsap.utils.toArray(".hero-sub, .hero-lead");
 
-  /* Ocultar ya; esperar a la tipografía para que no se vea la fuente de respaldo */
   gsap.set([...letters, ...copy], { opacity: 0 });
   const fontsReady = Promise.race([
     document.fonts?.ready ?? Promise.resolve(),
@@ -209,40 +337,10 @@ function initHeroIntro() {
         { y: 0, opacity: 1, stagger: .12, duration: .6, ease: "power2.out" }, "-=.35");
   });
 
-  /* Cabeceo: desplazamiento y giro con periodos distintos para que no sea mecánico */
   gsap.to(".boat-bob",
     { y: 7, duration: 1.7, yoyo: true, repeat: -1, ease: "sine.inOut", transformOrigin: "50% 85%" });
   gsap.fromTo(".boat-bob", { rotation: -2.2 },
     { rotation: 2.2, duration: 2.3, yoyo: true, repeat: -1, ease: "sine.inOut", transformOrigin: "50% 85%" });
-}
-
-function initIslands() {
-  gsap.utils.toArray(".island").forEach((island, i) => {
-    const float = island.querySelector(".island-float");
-    const palm = island.querySelector(".palm");
-
-    gsap.timeline({ scrollTrigger: { trigger: island, start: "top 88%", toggleActions: "play none none reverse" } })
-      .from(island,
-        { scale: .45, opacity: 0, y: 90, transformOrigin: "50% 60%", duration: 1.1, ease: "back.out(1.5)" })
-      .from(island.querySelectorAll(".island-body > *"),
-        { opacity: 0, y: 14, stagger: .08, duration: .5, ease: "power2.out" }, "-=.5")
-      .from(palm,
-        { scale: 0, transformOrigin: "50% 100%", duration: .6, ease: "back.out(2.5)" }, "-=.6");
-
-    /* Bucles de oleaje: solo corren mientras la isla está cerca de la pantalla */
-    const loops = [
-      gsap.to(float, { y: 9, duration: 2.6 + i * .35, yoyo: true, repeat: -1, ease: "sine.inOut", paused: true }),
-      gsap.fromTo(palm, { rotation: -3 },
-        {
-          rotation: 3, transformOrigin: "50% 100%",
-          duration: 2.2 + i * .2, yoyo: true, repeat: -1, ease: "sine.inOut", paused: true
-        })
-    ];
-    ScrollTrigger.create({
-      trigger: island, start: "top bottom", end: "bottom top",
-      onToggle: (self) => loops.forEach((t) => self.isActive ? t.play() : t.pause())
-    });
-  });
 }
 
 function initBuoys() {
@@ -265,7 +363,7 @@ function initBuoys() {
         if (self.isActive) { on.play(); wave.play(0); }
         else {
           on.reverse(); wave.pause();
-          gsap.to(ripple, { opacity: 0, duration: .2, overwrite: true });
+          gsap.set(ripple, { opacity: 0 });
         }
       }
     });
@@ -273,28 +371,36 @@ function initBuoys() {
 }
 
 function initSea() {
-  /* Paralaje del scroll: una sola línea de tiempo para todas las capas */
   gsap.timeline({
     defaults: { ease: "none" },
-    scrollTrigger: { trigger: document.body, start: "top top", end: "bottom bottom", scrub: 1.2 }
+    scrollTrigger: {
+      trigger: document.body, start: "top top", end: "bottom bottom",
+      scrub: 1.2, fastScrollEnd: true,
+    }
   }).to(".sea .parallax", {
     x: (_, g) => -g.dataset.depth * 7,
     y: (_, g) => -g.dataset.depth * 5
   }, 0);
 
-  /* Y una respiración lenta */
-  gsap.utils.toArray(".sea .idle").forEach((g, i) => {
+  const idles = gsap.utils.toArray(".sea .idle").map((g, i) =>
     gsap.to(g, {
       x: (i % 2 ? 1 : -1) * 14, y: 10,
-      duration: 5 + i * .7, yoyo: true, repeat: -1, ease: "sine.inOut"
+      duration: 5 + i * .7, yoyo: true, repeat: -1,
+      ease: "sine.inOut", paused: true,
+    })
+  );
+  const sea = document.querySelector(".sea");
+  if (sea) {
+    ScrollTrigger.create({
+      trigger: sea, start: "top bottom", end: "bottom top",
+      onToggle: (self) => idles.forEach((t) => self.isActive ? t.play() : t.pause()),
     });
-  });
+  }
 }
 
 
 /* ── Microinteracciones ─────────────────────────────────────────────────── */
 
-/* Hover (mouse) o press (táctil) sobre botones: se elevan 3px */
 function initPressables() {
   const REACTIONS = {
     pointerenter: (e, lift) => e.pointerType === "mouse" && lift(-3),
@@ -309,7 +415,6 @@ function initPressables() {
   });
 }
 
-/* Volver arriba: con ScrollToPlugin controla GSAP; sin él, scroll nativo */
 function initToTop() {
   document.getElementById("toTop")?.addEventListener("click", () => {
     if (window.gsap && window.ScrollToPlugin && !REDUCED) {
@@ -336,17 +441,19 @@ if (window.gsap && window.ScrollTrigger && window.MotionPathPlugin && !REDUCED) 
   gsap.registerPlugin(ScrollTrigger, MotionPathPlugin);
   if (window.ScrollToPlugin) gsap.registerPlugin(ScrollToPlugin);
 
-  /* force3D: los elementos animados no "saltan" al terminar el tween */
   gsap.config({ force3D: true });
-  /* ignoreMobileResize: la barra del navegador móvil no debe disparar recálculos */
+
   ScrollTrigger.config({
     ignoreMobileResize: true,
-    limitCallbacks: true   // reduce la frecuencia de callbacks en móvil
+    limitCallbacks: true,
   });
+  if (ScrollTrigger.isTouch === 1) {
+    ScrollTrigger.normalizeScroll(true);
+  }
 
-  initBoatJourney();
+  const islandCtl = initIslands();
+  initBoatJourney(islandCtl);
   initHeroIntro();
-  initIslands();
   initBuoys();
   initSea();
   initPressables();
