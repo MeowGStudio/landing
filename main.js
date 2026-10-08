@@ -10,6 +10,10 @@ const ICONS = {
 };
 const HERO_SHADOWS = ["sky", "yellow", "green", "orange", "brown", "sky", "yellow"];
 const ISLAND_LAYERS = [["i-lagoon", 1], ["i-foam", .95], ["i-sand", .915], ["i-land", .89]];
+const FOOTPRINT = {
+  desktop: { size: 28, gap: 84, side: 13 },
+  mobile: { size: 18, gap: 62, side: 9 }
+};
 
 const svgEl = (name, attrs = {}) => {
   const el = document.createElementNS(SVG_NS, name);
@@ -100,20 +104,53 @@ function mountTrail(main, boat) {
   });
   svg.style.cssText = "position:absolute;left:0;top:0;width:100%;height:100%;";
 
-  const dots = svgEl("path", { class: "trail-dots" });
-  svg.appendChild(dots);
+  const guide = svgEl("path", { class: "trail-guide" });
+  const prints = svgEl("g", { class: "trail-prints" });
+  svg.append(guide, prints);
   wrap.appendChild(svg);
   main.prepend(wrap);
 
   return {
     wrap,
-    dots,
+    guide,
+    prints,
     mainH: h,
     origin: {
       x: br.left + br.width / 2 - mr.left,
       y: br.top + br.height / 2 - mr.top,
     },
   };
+}
+
+function placeFootprints(guide, layer, { size, gap, side }, avoid) {
+  const total = guide.getTotalLength();
+  const half = size / 2;
+  const EPS = 4;
+  const frag = document.createDocumentFragment();
+
+  for (let i = 0, s = gap * .6; s < total; i++, s += gap) {
+    const p = guide.getPointAtLength(s);
+    if (avoid.some((a) => Math.hypot(p.x - a.x, p.y - a.y) < a.r + half)) continue;
+
+    const a = guide.getPointAtLength(Math.max(s - EPS, 0));
+    const b = guide.getPointAtLength(Math.min(s + EPS, total));
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const angle = Math.atan2(dy, dx) * 180 / Math.PI + 90;
+
+    const off = i % 2 ? side : -side;
+    const x = p.x - (dy / len) * off;
+    const y = p.y + (dx / len) * off;
+
+    frag.appendChild(svgEl("use", {
+      href: "#footprint",
+      class: "footprint",
+      x: -half, y: -half, width: size, height: size,
+      transform: `translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${angle.toFixed(1)})`
+    }));
+  }
+  layer.appendChild(frag);
 }
 
 function initBoatJourney(islandCtl) {
@@ -134,7 +171,7 @@ function initBoatJourney(islandCtl) {
       if (!points.length) return;
 
       const total = Math.max(points.at(-1).y, 1);
-      const { wrap, dots, origin, mainH } = mountTrail(main, boat);
+      const { wrap, guide, prints, origin, mainH } = mountTrail(main, boat);
 
       const isMobile = innerWidth <= 760;
       const ENTRY_PLAY = isMobile ? 0.55 : 1;
@@ -154,7 +191,19 @@ function initBoatJourney(islandCtl) {
           ` ${p.x + origin.x} ${p.y + origin.y}`;
         prev = p;
       }
-      dots.setAttribute("d", absD);
+      guide.setAttribute("d", absD);
+
+      /* Sin huellas debajo de las boyas (ni de la de salida): la ruta "llega" a ellas */
+      const startBuoy = document.querySelector(".buoy--start");
+      const avoid = [
+        { x: origin.x, y: origin.y, r: (startBuoy?.offsetWidth ?? 0) / 2 },
+        ...[...STOP_BUOYS].map((b, i) => ({
+          x: points[i].x + origin.x,
+          y: points[i].y + origin.y,
+          r: b.offsetWidth / 2,
+        })),
+      ];
+      placeFootprints(guide, prints, isMobile ? FOOTPRINT.mobile : FOOTPRINT.desktop, avoid);
 
       const tilt = gsap.quickTo(boatLogo, "rotation", { duration: .5, ease: "power2.out" });
       let lastX = 0;
@@ -168,9 +217,13 @@ function initBoatJourney(islandCtl) {
       const pad = isMobile ? .08 : 0;
       const windows = points.map((p, i) => {
         const prevY = i > 0 ? points[i - 1].y : 0;
-        const nextY = i < points.length - 1 ? points[i + 1].y : Infinity;
+        const nextY = points[i + 1]?.y;
         const appearAt = (prevY + p.y) / 2 - pad * (p.y - prevY);
-        const disappearAt = (p.y + nextY) / 2 + pad * (nextY - p.y);
+        /* La última parada no tiene "siguiente": nunca se vuelve a ocultar.
+           Se pone Infinity a mano porque pad * Infinity daría NaN cuando pad = 0. */
+        const disappearAt = nextY === undefined
+          ? Infinity
+          : (p.y + nextY) / 2 + pad * (nextY - p.y);
         return { appearAt, disappearAt };
       });
 
@@ -186,11 +239,10 @@ function initBoatJourney(islandCtl) {
         for (let i = 0; i < n; i++) {
           const c = islandCtl[i];
           const w = windows[i];
-          const isLast = i === n - 1;
-          const shouldShow = boatY >= w.appearAt && (isLast || boatY < w.disappearAt);
+          const shouldShow = boatY >= w.appearAt && boatY < w.disappearAt;
           if (shouldShow && !c.state.shown) {
             showIsland(c);
-          } else if (!shouldShow && c.state.shown && !isLast) {
+          } else if (!shouldShow && c.state.shown) {
             c.state.shown = false;
             c.entry.timeScale(ENTRY_REV).reverse();
             c.syncLoops();
@@ -221,21 +273,6 @@ function initBoatJourney(islandCtl) {
             syncIslands(y);
           },
         }, 0);
-
-      const lastCtl = islandCtl[islandCtl.length - 1];
-      if (lastCtl?.el) {
-        const reveal = () => showIsland(lastCtl);
-        ScrollTrigger.create({
-          trigger: lastCtl.el,
-          start: "top 92%",
-          end: "bottom top",
-          onEnter: reveal,
-          onEnterBack: reveal,
-        });
-
-        const r = lastCtl.el.getBoundingClientRect();
-        if (r.top < innerHeight * .92) reveal();
-      }
 
       requestAnimationFrame(() => {
         const y = gsap.getProperty(boat, "y") || 0;
@@ -323,7 +360,6 @@ function initIslands() {
 
   return controllers;
 }
-
 
 function initHeroIntro() {
   const letters = gsap.utils.toArray(".hero-letter");

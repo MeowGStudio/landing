@@ -78,12 +78,14 @@ a {
   pointer-events: none
 }
 
-.trail-dots {
+.trail-guide {
   fill: none;
-  stroke: var(--orange);
-  stroke-width: 7.5;
-  stroke-linecap: round;
-  stroke-dasharray: .5 32
+  stroke: none
+}
+
+.footprint {
+  fill: var(--orange);
+  opacity: .9
 }
 
 .stop {
