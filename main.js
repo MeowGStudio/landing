@@ -1,5 +1,3 @@
-/* Yohocat Studio — main.js · todo el movimiento vive aquí (GSAP) */
-
 const SVG_NS = "http://www.w3.org/2000/svg";
 const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -11,7 +9,6 @@ const ICONS = {
   mail: ["........", "########", "##....##", "#.#..#.#", "#..##..#", "#......#", "########", "........"]
 };
 const HERO_SHADOWS = ["sky", "yellow", "green", "orange", "brown", "sky", "yellow"];
-/* Capas de cada isla, de fuera hacia dentro: [clase, escala] */
 const ISLAND_LAYERS = [["i-lagoon", 1], ["i-foam", .95], ["i-sand", .915], ["i-land", .89]];
 
 const svgEl = (name, attrs = {}) => {
@@ -20,11 +17,7 @@ const svgEl = (name, attrs = {}) => {
   return el;
 };
 
-/* El script va al final del <body>, el DOM ya está listo: cache una vez. */
 const STOP_BUOYS = document.querySelectorAll(".buoy:not(.buoy--start)");
-
-
-/* ── Decoración del DOM ─────────────────────────────────────────────────── */
 
 function decorateBuoys() {
   const iconSVG = (name) => {
@@ -76,8 +69,6 @@ function decorateIslands() {
     island.querySelector(".island-float").prepend(shape, palm);
   });
 }
-
-/* ── Viaje del barco ────────────────────────────────────────────────────── */
 
 const centerOf = (el) => {
   const r = el.getBoundingClientRect();
@@ -196,7 +187,6 @@ function initBoatJourney(islandCtl) {
           const c = islandCtl[i];
           const w = windows[i];
           const isLast = i === n - 1;
-          /* La última isla no se vuelve a ocultar nunca: no tiene "después". */
           const shouldShow = boatY >= w.appearAt && (isLast || boatY < w.disappearAt);
           if (shouldShow && !c.state.shown) {
             showIsland(c);
@@ -269,9 +259,6 @@ function initBoatJourney(islandCtl) {
   });
 }
 
-
-/* ── Islas ──────────────────────────────────────────────────────────────── */
-
 function initIslands() {
   const islands = gsap.utils.toArray(".island");
   const controllers = [];
@@ -337,8 +324,6 @@ function initIslands() {
   return controllers;
 }
 
-
-/* ── Animaciones ambientales ────────────────────────────────────────────── */
 
 function initHeroIntro() {
   const letters = gsap.utils.toArray(".hero-letter");
@@ -406,9 +391,6 @@ function initSea() {
   });
 }
 
-
-/* ── Microinteracciones ─────────────────────────────────────────────────── */
-
 function initPressables() {
   const REACTIONS = {
     pointerenter: (e, lift) => e.pointerType === "mouse" && lift(-3),
@@ -436,9 +418,6 @@ function initToTop() {
     }
   });
 }
-
-
-/* ── Arranque ───────────────────────────────────────────────────────────── */
 
 decorateBuoys();
 decorateHeroTitle();
