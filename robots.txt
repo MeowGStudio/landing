@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://yohocatstudio.com/sitemap.xml
