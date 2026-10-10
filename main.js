@@ -1,6 +1,6 @@
 const NS = "http://www.w3.org/2000/svg";
 const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
-const BOAT_OFFSET = 150;
+const BOAT_OFFSET = 256;
 const ROW_GAP = 12;
 const ICONS = {
   heart: ".##..##.########################.######...####.....##...........",
@@ -109,9 +109,8 @@ function placeFootprints(guide, layerFor, { size, gap, side }, avoid) {
 function prepareIslandText() {
   $$(".island").forEach((island) => {
     const body = $(".island-body", island);
-    const title = body && $(":scope > h2", body);
-    if (!title) return;
-    const kids = [...body.children].filter((el) => el !== title && !el.matches(".tag"));
+    if (!body) return;
+    const kids = [...body.children].filter((el) => !el.matches(".tag"));
     const steps = [];
     for (let i = 0; i < kids.length; i++) {
       const el = kids[i];
@@ -124,27 +123,26 @@ function prepareIslandText() {
         steps.push(group);
       } else steps.push(el);
     }
-    const stage = document.createElement("div");
-    stage.style.display = "grid";
+    const stage = Object.assign(document.createElement("div"), { className: "island-stage" });
     steps.forEach((s) => {
       s.style.gridArea = "1 / 1";
       stage.append(s);
     });
     body.append(stage);
-    Object.assign(island, { _title: title, _steps: steps });
+    island._steps = steps;
   });
 }
 
-const stepParts = (step) => step.matches("p, h3") ? [[step], []] : [$$("h3, p", step), $$("li", step)];
+const stepParts = (step) => step.matches("h2, h3, p") ? [[step], []] : [$$("h3, p", step), $$("li", step)];
 
 function initIslandText(island) {
-  const { _title: title, _steps: steps } = island;
+  const steps = island._steps;
   const section = island.closest(".stop");
   const buoy = $(".buoy", section);
   const marker = $(".marker", section);
-  if (!title || !steps?.length || !marker) return null;
+  if (!steps?.length || !marker) return null;
 
-  const enterAt = (k) => .6 + k * 1.2;
+  const enterAt = (k) => .15 + k * 1.2;
   const duration = enterAt(steps.length - 1) + 1.4;
   const master = gsap.timeline({
     defaults: { ease: "none" },
@@ -160,7 +158,7 @@ function initIslandText(island) {
   master.to({}, { duration }, 0);
 
   const lines = (el) => $$(".st-line", el);
-  SplitText.create([title, ...steps.flatMap((s) => stepParts(s)[0])], {
+  SplitText.create(steps.flatMap((s) => stepParts(s)[0]), {
     type: "lines",
     mask: "lines",
     linesClass: "st-line",
@@ -175,7 +173,6 @@ function initIslandText(island) {
         if (ls.length) tl.fromTo(ls, { yPercent: 0 }, { yPercent: -120, duration: .5, stagger: .04, ease: "power2.in", immediateRender: false }, at);
         if (items.length) tl.fromTo(items, { autoAlpha: 1, y: 0 }, { autoAlpha: 0, y: -10, duration: .35, stagger: .03, ease: "power2.in", immediateRender: false }, at);
       };
-      reveal(lines(title), [], 0);
       steps.forEach((step, k) => {
         const [text, items] = stepParts(step);
         const ls = text.flatMap(lines);

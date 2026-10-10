@@ -13,7 +13,7 @@
   --shadow-sm: rgb(var(--shadow-rgb)/.35);
   --shadow-text: rgb(var(--shadow-rgb)/.55);
   --font-display: "Silkscreen", "Courier New", monospace;
-  --font-body: "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-body: "Fredoka", "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif;
   --radius: 4px;
   --border: 3px;
   --tap-size: 48px;
@@ -249,24 +249,33 @@ a {
 .palm {
   position: absolute;
   top: clamp(-100px, -12vw, -88px);
-  right: 26%;
-  z-index: 2;
+  right: 8%;
+  z-index: 0;
   width: clamp(128px, 24vw, 168px);
   height: clamp(152px, 28vw, 196px);
   overflow: visible;
   pointer-events: none;
 }
 
-.flip .palm {
-  right: auto;
-  left: 26%
-}
-
 .island-body {
   position: relative;
   z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   padding: 6rem clamp(2.1rem, 11vw, 5rem) 4.2rem;
-  color: var(--ink)
+  color: var(--ink);
+  text-align: center
+}
+
+.island-stage {
+  display: grid;
+  place-items: center;
+  width: 100%
+}
+
+.island-body .island-stage>* {
+  margin: 0
 }
 
 .island-body h2 {
@@ -394,13 +403,18 @@ a {
 }
 
 .tag {
-  display: inline-block;
-  margin-bottom: 1rem;
-  padding: .2rem .6rem;
-  font: .85rem var(--font-display);
+  display: block;
+  width: fit-content;
+  margin-right: auto;
+  text-align: left;
+  position: relative;
+  top: -30px;
+  margin-bottom: 1.6rem;
+  padding: .4rem 1.2rem;
+  font: 1.7rem var(--font-display);
   background: var(--accent);
   color: var(--ink);
-  border-radius: 3px;
+  border-radius: 6px;
 }
 
 .paths {
@@ -424,6 +438,7 @@ a {
 .chips {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: .5rem;
   list-style: none
 }
@@ -527,7 +542,8 @@ a {
 
   .links {
     flex-direction: row;
-    flex-wrap: wrap
+    flex-wrap: wrap;
+    justify-content: center
   }
 
   .links a {
