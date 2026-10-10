@@ -45,6 +45,9 @@ body {
   color: var(--white);
   font: clamp(1rem, .96rem + .2vw, 1.1rem)/1.6 var(--font-body);
   overflow-x: hidden;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 
 a {
@@ -92,7 +95,7 @@ a {
   position: relative;
   display: grid;
   grid-template-areas: "marker" "card";
-  row-gap: 5vh;
+  row-gap: 15vh;
   padding: 18vh max(5vw, calc((100% - var(--max))/2));
 }
 
@@ -284,7 +287,9 @@ a {
   min-height: 100svh;
   grid-template-areas: "card" "marker";
   justify-items: center;
-  padding-block: 9vh 12vh;
+  align-content: start;
+  --hero-top: clamp(8.5rem, calc(8.5rem + (100vw - 390px) * .09), 13rem);
+  padding-block: var(--hero-top) 12vh;
   text-align: center;
 }
 
@@ -293,10 +298,39 @@ a {
 }
 
 .hero-text {
+  --cloud-w: 230%;
+  --cloud-h: 190%;
+  position: relative;
+  isolation: isolate;
   grid-area: card;
   width: 100%;
   max-width: 720px;
-  text-shadow: 0 2px 14px var(--shadow-text)
+  color: var(--ink)
+}
+
+.hero-cloud {
+  position: absolute;
+  left: 50%;
+  top: 35%;
+  z-index: -1;
+  width: var(--cloud-w);
+  height: var(--cloud-h);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.hero-cloud svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+@media (min-width:761px) {
+  .hero-text {
+    --cloud-w: 208%;
+    --cloud-h: 200%;
+  }
 }
 
 .hero-title {
@@ -318,20 +352,32 @@ a {
 
 .hero-letter {
   display: inline-block;
+  color: var(--navy);
   text-shadow: .06em .06em 0 var(--c)
 }
 
+.hero-letter.sub-letter,
+.hero-title .sub .hero-letter {
+  color: var(--blue)
+}
+
 .hero-sub {
-  margin-top: .8rem;
+  display: inline-block;
+  margin-top: 1rem;
+  padding: .15em .6em;
   font: clamp(1rem, .8rem + 1.6vw, 1.6rem) var(--font-display);
-  color: var(--sky)
+  background: var(--yellow);
+  color: var(--ink);
+  border-radius: 3px;
+  box-shadow: .12em .12em 0 var(--orange)
 }
 
 .hero-lead {
   max-width: 46ch;
   margin: 1.4rem auto 0;
   font-size: clamp(1.05rem, 1rem + .3vw, 1.2rem);
-  font-weight: 600;
+  font-weight: 700;
+  color: var(--ink);
 }
 
 .scroll-hint {
@@ -477,8 +523,9 @@ a {
   .stop--hero {
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas: "card" "marker";
-    row-gap: 5vh;
-    padding-block: 10vh 13vh;
+    row-gap: 15vh;
+    align-items: start;
+    padding-block: var(--hero-top) 13vh;
   }
 
   .links {
