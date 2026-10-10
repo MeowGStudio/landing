@@ -548,3 +548,9 @@ a {
     display: block
   }
 }
+
+@media (max-width:760px) {
+  .stop:not(.stop--hero) .buoy {
+    margin-inline: calc((100% - var(--boat-w) - var(--orb) - 12px) / 2)
+  }
+}

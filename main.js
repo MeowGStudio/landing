@@ -1,569 +1,407 @@
-const SVG_NS = "http://www.w3.org/2000/svg";
+const NS = "http://www.w3.org/2000/svg";
 const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
-let lenis = null;
-
+const BOAT_OFFSET = 150;
+const ROW_GAP = 12;
 const ICONS = {
-  heart: [".##..##.", "########", "########", "########", ".######.", "..####..", "...##...", "........"],
-  flag: ["#####...", "######..", "#######.", "######..", "#####...", "#.......", "#.......", "#......."],
-  eye: ["........", "..####..", ".######.", "###..###", "###..###", ".######.", "..####..", "........"],
-  star: ["...##...", "...##...", "########", ".######.", "..####..", ".##..##.", ".#....#.", "........"],
-  mail: ["........", "########", "##....##", "#.#..#.#", "#..##..#", "#......#", "########", "........"]
+  heart: ".##..##.########################.######...####.....##...........",
+  flag: "#####...######..#######.######..#####...#.......#.......#.......",
+  eye: "..........####...######.###..######..###.######...####..........",
+  star: "...##......##...########.######...####...##..##..#....#.........",
+  mail: "........##########....###.#..#.##..##..##......#########........"
 };
 const HERO_SHADOWS = ["sky", "yellow", "green", "orange", "brown", "sky", "yellow"];
 const ISLAND_LAYERS = [["i-lagoon", 1], ["i-foam", .95], ["i-sand", .915], ["i-land", .89]];
-const FOOTPRINT = {
-  desktop: { size: 28, gap: 84, side: 13 },
-  mobile: { size: 18, gap: 62, side: 9 }
-};
+const FOOTPRINT = { desktop: { size: 28, gap: 84, side: 13 }, mobile: { size: 18, gap: 62, side: 9 } };
+
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const mobile = () => innerWidth <= 760;
+const STOP_BUOYS = $$(".buoy:not(.buoy--start)");
+let lenis;
 
 const svgEl = (name, attrs = {}) => {
-  const el = document.createElementNS(SVG_NS, name);
-  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+  const el = document.createElementNS(NS, name);
+  for (const k in attrs) el.setAttribute(k, attrs[k]);
   return el;
 };
-
-const STOP_BUOYS = document.querySelectorAll(".buoy:not(.buoy--start)");
-
-function decorateBuoys() {
-  const iconSVG = (name) => {
-    const rows = ICONS[name];
-    if (!rows) return "";
-    const rects = rows.map((row, y) =>
-      [...row].map((c, x) => c === "#" ? `<rect x="${x}" y="${y}" width="1" height="1"/>` : "").join("")
-    ).join("");
-    return `<svg viewBox="0 0 8 8" aria-hidden="true">${rects}</svg>`;
-  };
-  STOP_BUOYS.forEach((buoy) => {
-    const r = document.createElement("span");
-    r.className = "ripple";
-    r.setAttribute("aria-hidden", "true");
-    buoy.appendChild(r);
-    const marker = buoy.querySelector(".marker[data-icon]");
-    if (marker) marker.innerHTML = iconSVG(marker.dataset.icon);
-  });
-}
-
-function decorateHeroTitle() {
-  let n = 0;
-  document.querySelectorAll(".hero-word").forEach((word) => {
-    [...word.dataset.text].forEach((ch) => {
-      const s = document.createElement("span");
-      s.className = "hero-letter";
-      s.setAttribute("aria-hidden", "true");
-      s.style.setProperty("--c", `var(--${HERO_SHADOWS[n++ % HERO_SHADOWS.length]})`);
-      s.textContent = ch;
-      word.appendChild(s);
-    });
-    n++;
-  });
-}
-
-function decorateIslands() {
-  document.querySelectorAll(".island[data-blob]").forEach((island) => {
-    const shape = svgEl("svg", {
-      class: "island-shape", viewBox: "0 0 100 100",
-      preserveAspectRatio: "none", "aria-hidden": "true"
-    });
-    ISLAND_LAYERS.forEach(([cls, scale]) => {
-      const use = svgEl("use", { href: `#blob${island.dataset.blob}`, class: cls });
-      if (scale !== 1) use.setAttribute("transform", `translate(50 50) scale(${scale}) translate(-50 -50)`);
-      shape.appendChild(use);
-    });
-    const palm = svgEl("svg", { class: "palm", "aria-hidden": "true" });
-    palm.appendChild(svgEl("use", { href: "#palm" }));
-    island.querySelector(".island-float").prepend(shape, palm);
-  });
-}
 
 const centerOf = (el) => {
   const r = el.getBoundingClientRect();
   return { x: r.left + r.width / 2 + scrollX, y: r.top + r.height / 2 + scrollY };
 };
 
-function mountTrail(main, boat) {
-  main.querySelector(".trail-clip")?.remove();
-  if (getComputedStyle(main).position === "static") main.style.position = "relative";
+const pinLine = (buoy) => mobile() ? buoy.offsetHeight / 2 + Math.max(24, innerHeight * .035) : innerHeight / 2;
+const textUnit = () => mobile() ? Math.max(230, innerHeight * .34) : Math.max(300, innerHeight * .4);
 
+function decorate() {
+  STOP_BUOYS.forEach((buoy) => {
+    buoy.insertAdjacentHTML("beforeend", '<span class="ripple" aria-hidden="true"></span>');
+    const marker = $(".marker[data-icon]", buoy);
+    const icon = ICONS[marker?.dataset.icon];
+    if (icon) {
+      const rects = [...icon].map((c, i) => c === "#" ? `<rect x="${i % 8}" y="${i >> 3}" width="1" height="1"/>` : "").join("");
+      marker.innerHTML = `<svg viewBox="0 0 8 8" aria-hidden="true">${rects}</svg>`;
+    }
+  });
+
+  let n = 0;
+  $$(".hero-word").forEach((word) => {
+    [...word.dataset.text].forEach((ch) => {
+      const s = Object.assign(document.createElement("span"), { className: "hero-letter", textContent: ch });
+      s.setAttribute("aria-hidden", "true");
+      s.style.setProperty("--c", `var(--${HERO_SHADOWS[n++ % HERO_SHADOWS.length]})`);
+      word.append(s);
+    });
+    n++;
+  });
+
+  $$(".island[data-blob]").forEach((island) => {
+    const shape = svgEl("svg", { class: "island-shape", viewBox: "0 0 100 100", preserveAspectRatio: "none", "aria-hidden": "true" });
+    shape.append(...ISLAND_LAYERS.map(([cls, k]) => svgEl("use", {
+      href: `#blob${island.dataset.blob}`, class: cls, transform: `translate(50 50) scale(${k}) translate(-50 -50)`
+    })));
+    const palm = svgEl("svg", { class: "palm", "aria-hidden": "true" });
+    palm.append(svgEl("use", { href: "#palm" }));
+    $(".island-float", island).prepend(shape, palm);
+  });
+}
+
+function mountTrail(main, boat) {
+  $(".trail-clip", main)?.remove();
+  if (getComputedStyle(main).position === "static") main.style.position = "relative";
   const mr = main.getBoundingClientRect();
   const br = boat.getBoundingClientRect();
   const w = main.offsetWidth;
   const h = main.offsetHeight;
 
-  const wrap = document.createElement("div");
-  wrap.className = "trail-clip";
+  const wrap = Object.assign(document.createElement("div"), { className: "trail-clip" });
   wrap.setAttribute("aria-hidden", "true");
-  wrap.style.cssText =
-    "position:absolute;left:0;top:0;width:100%;height:100%;" +
-    "overflow:hidden;pointer-events:none;" +
-    "will-change:clip-path;clip-path:inset(0px 0px " + h + "px 0px);";
-
-  const svg = svgEl("svg", {
-    class: "trail",
-    width: w, height: h,
-    viewBox: `0 0 ${w} ${h}`,
-    preserveAspectRatio: "none",
-  });
-  svg.style.cssText = "position:absolute;left:0;top:0;width:100%;height:100%;";
-
+  wrap.style.cssText = `position:absolute;inset:0;overflow:hidden;pointer-events:none;will-change:clip-path;clip-path:inset(0 0 ${h}px 0)`;
+  const svg = svgEl("svg", { class: "trail", width: w, height: h, viewBox: `0 0 ${w} ${h}`, preserveAspectRatio: "none" });
   const guide = svgEl("path", { class: "trail-guide" });
-  const prints = svgEl("g", { class: "trail-prints" });
+  const prints = svgEl("g");
   svg.append(guide, prints);
-  wrap.appendChild(svg);
+  wrap.append(svg);
   main.prepend(wrap);
 
-  return {
-    wrap,
-    guide,
-    prints,
-    mainH: h,
-    origin: {
-      x: br.left + br.width / 2 - mr.left,
-      y: br.top + br.height / 2 - mr.top,
-    },
-  };
+  return { wrap, guide, prints, h, origin: { x: br.left + br.width / 2 - mr.left, y: br.top + br.height / 2 - mr.top } };
 }
 
 function placeFootprints(guide, layerFor, { size, gap, side }, avoid) {
   const total = guide.getTotalLength();
   const half = size / 2;
-  const EPS = 4;
   for (let i = 0, s = gap * .6; s < total; i++, s += gap) {
     const p = guide.getPointAtLength(s);
     if (avoid.some((a) => Math.hypot(p.x - a.x, p.y - a.y) < a.r + half)) continue;
-
-    const a = guide.getPointAtLength(Math.max(s - EPS, 0));
-    const b = guide.getPointAtLength(Math.min(s + EPS, total));
+    const a = guide.getPointAtLength(Math.max(s - 4, 0));
+    const b = guide.getPointAtLength(Math.min(s + 4, total));
     const dx = b.x - a.x;
     const dy = b.y - a.y;
     const len = Math.hypot(dx, dy) || 1;
-    const angle = Math.atan2(dy, dx) * 180 / Math.PI + 90;
-
     const off = i % 2 ? side : -side;
-    const x = p.x - (dy / len) * off;
-    const y = p.y + (dx / len) * off;
-
-    layerFor(p).appendChild(svgEl("use", {
-      href: "#footprint",
-      class: "footprint",
-      x: -half, y: -half, width: size, height: size,
-      transform: `translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${angle.toFixed(1)})`
+    layerFor(p).append(svgEl("use", {
+      href: "#footprint", class: "footprint", x: -half, y: -half, width: size, height: size,
+      transform: `translate(${(p.x - dy / len * off).toFixed(1)} ${(p.y + dx / len * off).toFixed(1)}) rotate(${(Math.atan2(dy, dx) * 180 / Math.PI + 90).toFixed(1)})`
     }));
   }
 }
 
-
-const SPLIT_LINE = "st-line";
-const textUnit = () => innerWidth <= 760
-  ? Math.max(230, innerHeight * .34)
-  : Math.max(300, innerHeight * .4);
-
 function prepareIslandText() {
-  document.querySelectorAll(".island").forEach((island) => {
-    const body = island.querySelector(".island-body");
-    const title = body?.querySelector(":scope > h2");
-    if (!body || !title || body.dataset.staged) return;
-
-    const tag = body.querySelector(":scope > .tag");
-    const kids = [...body.children].filter((el) => el !== tag && el !== title);
+  $$(".island").forEach((island) => {
+    const body = $(".island-body", island);
+    const title = body && $(":scope > h2", body);
+    if (!title) return;
+    const kids = [...body.children].filter((el) => el !== title && !el.matches(".tag"));
     const steps = [];
-
     for (let i = 0; i < kids.length; i++) {
       const el = kids[i];
-      if (el.classList.contains("paths")) {
-        steps.push(...el.querySelectorAll(":scope > .path"));
+      if (el.matches(".paths")) {
+        steps.push(...el.children);
         el.remove();
-      } else if (el.classList.contains("method-title") && kids[i + 1]) {
+      } else if (el.matches(".method-title") && kids[i + 1]) {
         const group = document.createElement("div");
-        group.append(el, kids[i + 1]);
+        group.append(el, kids[++i]);
         steps.push(group);
-        i++;
-      } else {
-        steps.push(el);
-      }
+      } else steps.push(el);
     }
-
     const stage = document.createElement("div");
-    stage.className = "island-stage";
     stage.style.display = "grid";
     steps.forEach((s) => {
       s.style.gridArea = "1 / 1";
       stage.append(s);
     });
     body.append(stage);
-    body.dataset.staged = "1";
-    island._title = title;
-    island._steps = steps;
+    Object.assign(island, { _title: title, _steps: steps });
   });
 }
 
-const stepParts = (step) => ({
-  text: step.matches("p, h3") ? [step] : [...step.querySelectorAll("h3, p")],
-  items: step.matches("p, h3") ? [] : [...step.querySelectorAll("li")]
-});
+const stepParts = (step) => step.matches("p, h3") ? [[step], []] : [$$("h3, p", step), $$("li", step)];
 
 function initIslandText(island) {
-  const title = island._title;
-  const steps = island._steps;
+  const { _title: title, _steps: steps } = island;
   const section = island.closest(".stop");
-  const marker = section?.querySelector(".marker");
-  if (!title || !steps?.length || !section || !marker) return null;
+  const buoy = $(".buoy", section);
+  const marker = $(".marker", section);
+  if (!title || !steps?.length || !marker) return null;
 
-  const N = steps.length;
   const enterAt = (k) => .6 + k * 1.2;
-  const D = enterAt(N - 1) + 1.4;
-  const holdPx = () => D * textUnit();
-
+  const duration = enterAt(steps.length - 1) + 1.4;
   const master = gsap.timeline({
     defaults: { ease: "none" },
     scrollTrigger: {
       trigger: marker,
-      start: "center center",
-      end: () => "+=" + holdPx(),
+      start: () => `center ${Math.round(pinLine(buoy))}px`,
+      end: () => "+=" + duration * textUnit(),
       pin: section,
       scrub: .6,
       invalidateOnRefresh: true
     }
   });
-  master.to({}, { duration: D }, 0);
+  master.to({}, { duration }, 0);
 
-  const targets = [title, ...steps.flatMap((s) => stepParts(s).text)];
-  const linesOf = (el) => [...el.querySelectorAll("." + SPLIT_LINE)];
-
-  SplitText.create(targets, {
+  const lines = (el) => $$(".st-line", el);
+  SplitText.create([title, ...steps.flatMap((s) => stepParts(s)[0])], {
     type: "lines",
     mask: "lines",
-    linesClass: SPLIT_LINE,
+    linesClass: "st-line",
     autoSplit: true,
     onSplit() {
-      const inner = gsap.timeline();
-
-      inner.fromTo(linesOf(title), { yPercent: 120 },
-        { yPercent: 0, duration: .7, stagger: .1, ease: "power3.out" }, 0);
-
+      const tl = gsap.timeline();
+      const reveal = (ls, items, at) => {
+        if (ls.length) tl.fromTo(ls, { yPercent: 120 }, { yPercent: 0, duration: .7, stagger: .08, ease: "power3.out" }, at);
+        if (items.length) tl.fromTo(items, { autoAlpha: 0, y: 16 }, { autoAlpha: 1, y: 0, duration: .5, stagger: .06, ease: "power2.out" }, at + .15);
+      };
+      const hide = (ls, items, at) => {
+        if (ls.length) tl.fromTo(ls, { yPercent: 0 }, { yPercent: -120, duration: .5, stagger: .04, ease: "power2.in", immediateRender: false }, at);
+        if (items.length) tl.fromTo(items, { autoAlpha: 1, y: 0 }, { autoAlpha: 0, y: -10, duration: .35, stagger: .03, ease: "power2.in", immediateRender: false }, at);
+      };
+      reveal(lines(title), [], 0);
       steps.forEach((step, k) => {
-        const { text, items } = stepParts(step);
-        const lines = text.flatMap(linesOf);
-        const t0 = enterAt(k);
-
-        if (lines.length) {
-          inner.fromTo(lines, { yPercent: 120 },
-            { yPercent: 0, duration: .7, stagger: .08, ease: "power3.out" }, t0);
-        }
-        if (items.length) {
-          inner.fromTo(items, { autoAlpha: 0, y: 16 },
-            { autoAlpha: 1, y: 0, duration: .5, stagger: .06, ease: "power2.out" }, t0 + .15);
-        }
-
-        if (k < N - 1) {
-          const out = enterAt(k + 1) - .45;
-          if (lines.length) {
-            inner.fromTo(lines, { yPercent: 0 },
-              { yPercent: -120, duration: .5, stagger: .04, ease: "power2.in", immediateRender: false }, out);
-          }
-          if (items.length) {
-            inner.fromTo(items, { autoAlpha: 1, y: 0 },
-              { autoAlpha: 0, y: -10, duration: .35, stagger: .03, ease: "power2.in", immediateRender: false }, out);
-          }
-        }
+        const [text, items] = stepParts(step);
+        const ls = text.flatMap(lines);
+        reveal(ls, items, enterAt(k));
+        if (k < steps.length - 1) hide(ls, items, enterAt(k + 1) - .45);
       });
-
-      master.add(inner, 0);
-      return inner;
+      master.add(tl, 0);
+      return tl;
     }
   });
-
-  return { st: master.scrollTrigger, holdPx };
+  return master.scrollTrigger;
 }
 
-function initBoatJourney(islandCtl) {
-  const main = document.querySelector(".main");
-  const boat = document.querySelector(".boat");
-  const boatLogo = boat?.querySelector(".logo-boat");
-  if (!main || !boat || !boatLogo) return;
+function initBoatJourney(ctls) {
+  const main = $(".main");
+  const boat = $(".boat");
+  const logo = boat && $(".logo-boat", boat);
+  if (!main || !logo) return;
   let ctx;
 
-  function build() {
+  const build = () => {
     ctx?.revert();
     ScrollTrigger.refresh();
     ctx = gsap.context(() => {
-      const vh = innerHeight;
+      const m = mobile();
+      const vw = innerWidth;
       const start = centerOf(boat);
-      const points = [...STOP_BUOYS].map((b, i) => {
-        const c = centerOf(b.querySelector(".marker") || b);
-        const pin = islandCtl[i]?.pin;
-        const y = pin ? pin.start + vh / 2 : c.y;
+      const bw = boat.offsetWidth;
+      const bh = boat.offsetHeight;
+      const startBuoy = $(".buoy--start");
+      const S0 = gsap.utils.clamp(0, ScrollTrigger.maxScroll(window), centerOf(startBuoy || boat).y - innerHeight / 2);
+
+      const stops = STOP_BUOYS.map((buoy, i) => {
+        const c = centerOf($(".marker", buoy) || buoy);
+        const pin = ctls[i]?.pin;
+        const line = pinLine(buoy);
+        const s0 = pin ? pin.start : c.y - line;
+        const side = c.x < vw / 2 ? 1 : -1;
         return {
-          x: c.x - start.x,
-          y: y - start.y,
-          hold: pin ? Math.max(pin.end - pin.start, 0) : 0
+          buoy, line, s0,
+          cx: c.x,
+          s1: pin ? Math.max(pin.end, s0) : s0,
+          bx: m ? c.x + side * ((buoy.offsetWidth + bw) / 2 + ROW_GAP) : c.x,
+          by: m ? line : line - Math.min(BOAT_OFFSET, line - bh / 2 - 12)
         };
       });
-      if (!points.length) return;
+      if (!stops.length) return;
 
-      const { wrap, guide, prints, origin, mainH } = mountTrail(main, boat);
-
-      const isMobile = innerWidth <= 760;
-      const ENTRY_PLAY = isMobile ? 0.55 : 1;
-      const ENTRY_REV = isMobile ? 0.85 : 1.4;
-
+      const { wrap, guide, prints, origin, h } = mountTrail(main, boat);
       const segs = [];
-      let absD = `M${origin.x} ${origin.y}`;
+      const pts = [];
+      let d = `M${origin.x} ${origin.y}`;
       let prev = { x: 0, y: 0 };
-      for (const p of points) {
-        const dy = Math.max(p.y - prev.y, 1);
-        const c1x = prev.x, c1y = prev.y + dy * .55;
-        const c2x = p.x, c2y = p.y - dy * .55;
-        segs.push({
-          dur: dy,
-          path: `M${prev.x} ${prev.y} C${c1x} ${c1y} ${c2x} ${c2y} ${p.x} ${p.y}`
-        });
-        absD +=
-          ` C${c1x + origin.x} ${c1y + origin.y}` +
-          ` ${c2x + origin.x} ${c2y + origin.y}` +
-          ` ${p.x + origin.x} ${p.y + origin.y}`;
-        prev = p;
-        if (p.hold > 0) {
-          segs.push({ dur: p.hold, path: `M${p.x} ${p.y} L${p.x} ${p.y + p.hold}`, point: points.indexOf(p) });
-          prev = { x: p.x, y: p.y + p.hold };
-          absD += ` M${prev.x + origin.x} ${prev.y + origin.y}`;
+      let at = S0;
+      stops.forEach((p, i) => {
+        const a = { x: p.bx - start.x, y: p.s0 + p.by - start.y };
+        const hold = p.s1 - p.s0;
+        const dy = Math.max(a.y - prev.y, 1);
+        const c1 = prev.y + dy * .55;
+        const c2 = a.y - dy * .55;
+        segs.push({ dur: Math.max(p.s0 - at, 1), path: `M${prev.x} ${prev.y}C${prev.x} ${c1} ${a.x} ${c2} ${a.x} ${a.y}` });
+        d += `C${prev.x + origin.x} ${c1 + origin.y} ${a.x + origin.x} ${c2 + origin.y} ${a.x + origin.x} ${a.y + origin.y}`;
+        pts.push({ y: a.y, hold });
+        prev = a;
+        at = p.s0;
+        if (hold > 0) {
+          segs.push({ dur: hold, path: `M${a.x} ${a.y}L${a.x} ${a.y + hold}`, layer: i });
+          prev = { x: a.x, y: a.y + hold };
+          at = p.s1;
+          d += `M${prev.x + origin.x} ${prev.y + origin.y}`;
         }
-      }
-      guide.setAttribute("d", absD);
-      const total = Math.max(segs.reduce((s, g) => s + g.dur, 0), 1);
+      });
+      guide.setAttribute("d", d);
 
-      const startBuoy = document.querySelector(".buoy--start");
       const avoid = [
-        { x: origin.x, y: origin.y, r: (startBuoy?.offsetWidth ?? 0) / 2 },
-        ...[...STOP_BUOYS].flatMap((b, i) => {
-          const r = b.offsetWidth / 2;
-          const c = [{ x: points[i].x + origin.x, y: points[i].y + origin.y, r }];
-          if (points[i].hold > 0) c.push({ x: points[i].x + origin.x, y: points[i].y + points[i].hold + origin.y, r });
-          return c;
-        }),
+        { x: origin.x, y: origin.y, r: (startBuoy?.offsetWidth || 0) / 2 },
+        ...stops.flatMap((p) => [p.s0, p.s1].map((s) => ({
+          x: p.cx - start.x + origin.x, y: s + p.line - start.y + origin.y, r: p.buoy.offsetWidth / 2
+        })))
       ];
+      const layers = stops.map(() => prints.appendChild(svgEl("g")));
+      const layerFor = (p) => layers[pts.findIndex((t, i) =>
+        p.y <= t.y + origin.y + 1 && (!i || p.y >= pts[i - 1].y + pts[i - 1].hold + origin.y))] || layers.at(-1);
+      placeFootprints(guide, layerFor, m ? FOOTPRINT.mobile : FOOTPRINT.desktop, avoid);
 
-      const printLayers = points.map(() => {
-        const g = svgEl("g");
-        prints.appendChild(g);
-        return g;
-      });
-      const layerFor = (p) => {
-        for (let i = 0; i < points.length; i++) {
-          const lo = i ? points[i - 1].y + points[i - 1].hold + origin.y : -Infinity;
-          if (p.y >= lo && p.y <= points[i].y + origin.y + 1) return printLayers[i];
-        }
-        return printLayers.at(-1);
-      };
-      placeFootprints(guide, layerFor, isMobile ? FOOTPRINT.mobile : FOOTPRINT.desktop, avoid);
-
-      const tilt = gsap.quickTo(boatLogo, "rotation", { duration: .5, ease: "power2.out" });
-      let lastX = 0;
-
-      const syncClip = (boatY) => {
-        const clipTop = origin.y + boatY;
-        const clipBottom = Math.max(0, mainH - clipTop);
-        wrap.style.clipPath = `inset(0px 0px ${clipBottom}px 0px)`;
-      };
-
-      const pad = isMobile ? .08 : 0;
-      const windows = points.map((p, i) => {
-        const prevY = i > 0 ? points[i - 1].y + points[i - 1].hold : 0;
+      const pad = m ? .08 : 0;
+      const windows = pts.map((p, i) => {
+        const top = i ? pts[i - 1].y + pts[i - 1].hold : 0;
         const bottom = p.y + p.hold;
-        const nextY = points[i + 1]?.y;
-        const appearAt = (prevY + p.y) / 2 - pad * (p.y - prevY);
-        const disappearAt = nextY === undefined
-          ? Infinity
-          : (bottom + nextY) / 2 + pad * (nextY - bottom);
-        return { appearAt, disappearAt };
+        const next = pts[i + 1]?.y;
+        return {
+          on: (top + p.y) / 2 - pad * (p.y - top),
+          off: next === undefined ? Infinity : (bottom + next) / 2 + pad * (next - bottom)
+        };
       });
 
-      const showIsland = (c) => {
-        if (c.state.shown) return;
-        c.state.shown = true;
-        c.entry.timeScale(ENTRY_PLAY).play();
-        c.syncLoops();
+      const tilt = gsap.quickTo(logo, "rotation", { duration: .5, ease: "power2.out" });
+      const maxTilt = m ? 5 : 12;
+      let lastX = 0;
+      const sync = () => {
+        const x = gsap.getProperty(boat, "x");
+        const y = gsap.getProperty(boat, "y");
+        tilt(gsap.utils.clamp(-maxTilt, maxTilt, (x - lastX) * 1.2));
+        lastX = x;
+        wrap.style.clipPath = `inset(0 0 ${Math.max(0, h - origin.y - y)}px 0)`;
+        ctls.slice(0, windows.length).forEach((c, i) => {
+          const show = y >= windows[i].on && y < windows[i].off;
+          if (show === c.state.shown) return;
+          c.state.shown = show;
+          if (show) c.entry.timeScale(m ? .55 : 1).play();
+          else c.entry.timeScale(m ? .85 : 1.4).reverse();
+          c.syncLoops();
+        });
       };
 
-      const syncIslands = (boatY) => {
-        const n = Math.min(islandCtl.length, windows.length);
-        for (let i = 0; i < n; i++) {
-          const c = islandCtl[i];
-          const w = windows[i];
-          const shouldShow = boatY >= w.appearAt && boatY < w.disappearAt;
-          if (shouldShow && !c.state.shown) {
-            showIsland(c);
-          } else if (!shouldShow && c.state.shown) {
-            c.state.shown = false;
-            c.entry.timeScale(ENTRY_REV).reverse();
-            c.syncLoops();
-          }
-        }
-      };
-
+      const total = Math.max(segs.reduce((t, g) => t + g.dur, 0), 1);
       const journey = gsap.timeline({
         defaults: { ease: "none" },
-        scrollTrigger: {
-          trigger: ".buoy--start",
-          start: "clamp(center center)",
-          end: () => "+=" + total,
-          scrub: .2,
-        },
-        onUpdate: () => {
-          const x = gsap.getProperty(boat, "x");
-          const y = gsap.getProperty(boat, "y");
-          const vx = x - lastX;
-          lastX = x;
-          tilt(gsap.utils.clamp(-14, 14, vx * 1.6));
-          syncClip(y);
-          syncIslands(y);
-        },
+        onUpdate: sync,
+        scrollTrigger: { start: S0, end: S0 + total, scrub: true }
       });
-      let cursor = 0;
-      for (const g of segs) {
-        journey.to(boat, {
-          duration: g.dur,
-          motionPath: { path: g.path, align: false, autoRotate: false },
-        }, cursor);
-        if (g.point !== undefined) journey.to(printLayers[g.point], { y: g.dur, duration: g.dur }, cursor);
-        cursor += g.dur;
-      }
-
-      requestAnimationFrame(() => {
-        const y = gsap.getProperty(boat, "y") || 0;
-        syncClip(y);
-        syncIslands(y);
+      let t = 0;
+      segs.forEach((g) => {
+        journey.to(boat, { duration: g.dur, motionPath: { path: g.path, align: false, autoRotate: false } }, t);
+        if (g.layer !== undefined) journey.to(layers[g.layer], { y: g.dur, duration: g.dur }, t);
+        t += g.dur;
       });
+      requestAnimationFrame(sync);
     });
-  }
+  };
 
   const loaded = document.readyState === "complete"
     ? Promise.resolve()
     : new Promise((r) => addEventListener("load", r, { once: true }));
-  Promise.all([loaded, document.fonts?.ready]).then(build);
+  Promise.all([loaded, document.fonts.ready]).then(build);
 
-  let t, lastW = innerWidth;
+  let timer;
+  let lastW = innerWidth;
   addEventListener("resize", () => {
     if (innerWidth === lastW) return;
     lastW = innerWidth;
-    clearTimeout(t);
-    t = setTimeout(build, 200);
+    clearTimeout(timer);
+    timer = setTimeout(build, 200);
   });
 }
 
 function initIslands() {
-  const islands = gsap.utils.toArray(".island");
-  const controllers = [];
+  return $$(".island").flatMap((island, i) => {
+    const float = $(".island-float", island);
+    const shape = $(".island-shape", island);
+    const palm = $(".palm", island);
+    if (!float || !shape) return [];
+    const body = $$(".island-body > *", island);
 
-  islands.forEach((island, i) => {
-    const float = island.querySelector(".island-float");
-    const shape = island.querySelector(".island-shape");
-    const palm = island.querySelector(".palm");
-    const bodyItems = island.querySelectorAll(".island-body > *");
-    if (!float || !shape) return;
-
-    gsap.set(shape, {
-      willChange: "transform", force3D: true, backfaceVisibility: "hidden",
-    });
-    gsap.set(palm, {
-      willChange: "transform", force3D: true, backfaceVisibility: "hidden",
-    });
-
+    gsap.set([shape, palm], { willChange: "transform", force3D: true, backfaceVisibility: "hidden" });
     gsap.set(island, { autoAlpha: 0 });
     gsap.set(shape, { scale: .5, y: 70, transformOrigin: "50% 60%" });
     gsap.set(palm, { scale: 0, transformOrigin: "50% 100%" });
-    if (bodyItems.length) gsap.set(bodyItems, { autoAlpha: 0, y: 12 });
+    gsap.set(body, { autoAlpha: 0, y: 12 });
 
-    const entry = gsap.timeline({ paused: true });
-    entry
+    const entry = gsap.timeline({ paused: true })
       .to(island, { autoAlpha: 1, duration: .5, ease: "none" }, 0)
       .to(shape, { scale: 1, y: 0, duration: 1.15, ease: "power3.out" }, 0)
-      .to(palm, { scale: 1, duration: .5, ease: "power3.out" }, "-=.6");
-    if (bodyItems.length) {
-      entry.to(bodyItems, {
-        autoAlpha: 1, y: 0,
-        stagger: .04, duration: .35, ease: "power2.out",
-      }, "-=.5");
-    }
+      .to(palm, { scale: 1, duration: .5, ease: "power3.out" }, "-=.6")
+      .to(body, { autoAlpha: 1, y: 0, stagger: .04, duration: .35, ease: "power2.out" }, "-=.5");
 
-    const bobT = gsap.to(float, {
-      y: 9, duration: 2.6 + i * .35,
-      yoyo: true, repeat: -1, ease: "sine.inOut", paused: true,
-    });
-    const palmT = gsap.fromTo(palm,
-      { rotation: -3 },
-      {
-        rotation: 3, transformOrigin: "50% 100%",
-        duration: 2.2 + i * .2,
-        yoyo: true, repeat: -1, ease: "sine.inOut", paused: true,
-      });
-
+    const loop = { yoyo: true, repeat: -1, ease: "sine.inOut", paused: true };
+    const loops = [
+      gsap.to(float, { y: 5, duration: 2.6 + i * .35, ...loop }),
+      gsap.fromTo(palm, { rotation: -2 }, { rotation: 2, transformOrigin: "50% 100%", duration: 2.2 + i * .2, ...loop })
+    ];
     const state = { shown: false, onScreen: false };
-    const syncLoops = () => {
-      const active = state.shown && state.onScreen;
-      if (active) { bobT.play(); palmT.play(); }
-      else { bobT.pause(); palmT.pause(); }
-    };
+    const syncLoops = () => loops.forEach((t) => state.shown && state.onScreen ? t.play() : t.pause());
 
-    const text = window.SplitText ? initIslandText(island) : null;
-    const holdPx = text?.holdPx ?? (() => 0);
-
+    const pin = window.SplitText ? initIslandText(island) : null;
     ScrollTrigger.create({
-      trigger: island, start: "top bottom",
-      end: () => "+=" + (innerHeight + island.offsetHeight + holdPx()),
-      onToggle: (self) => { state.onScreen = self.isActive; syncLoops(); },
+      trigger: island,
+      start: "top bottom",
+      end: () => "+=" + (innerHeight + island.offsetHeight + (pin ? pin.end - pin.start : 0)),
+      onToggle: (self) => {
+        state.onScreen = self.isActive;
+        syncLoops();
+      }
     });
 
-    controllers.push({ el: island, entry, state, syncLoops, pin: text?.st ?? null });
+    return { entry, state, syncLoops, pin };
   });
-
-  return controllers;
 }
 
 function initHeroIntro() {
-  const letters = gsap.utils.toArray(".hero-letter");
-  const copy = gsap.utils.toArray(".hero-sub, .hero-lead");
-
+  const letters = $$(".hero-letter");
+  const copy = $$(".hero-sub, .hero-lead");
   gsap.set([...letters, ...copy], { opacity: 0 });
-  const fontsReady = Promise.race([
-    document.fonts?.ready ?? Promise.resolve(),
-    new Promise((r) => setTimeout(r, 1500))
-  ]);
-  fontsReady.then(() => {
+  Promise.race([document.fonts.ready, new Promise((r) => setTimeout(r, 1500))]).then(() =>
     gsap.timeline()
-      .fromTo(letters,
-        { y: 70, rotation: -8 },
-        { y: 0, rotation: 0, opacity: 1, stagger: .06, duration: .7, ease: "back.out(2)" })
-      .fromTo(copy,
-        { y: 16 },
-        { y: 0, opacity: 1, stagger: .12, duration: .6, ease: "power2.out" }, "-=.35");
-  });
-
-  gsap.to(".boat-bob",
-    { y: 7, duration: 1.7, yoyo: true, repeat: -1, ease: "sine.inOut", transformOrigin: "50% 85%" });
-  gsap.fromTo(".boat-bob", { rotation: -2.2 },
-    { rotation: 2.2, duration: 2.3, yoyo: true, repeat: -1, ease: "sine.inOut", transformOrigin: "50% 85%" });
+      .fromTo(letters, { y: 70, rotation: -8 }, { y: 0, rotation: 0, opacity: 1, stagger: .06, duration: .7, ease: "back.out(2)" })
+      .fromTo(copy, { y: 16 }, { y: 0, opacity: 1, stagger: .12, duration: .6, ease: "power2.out" }, "-=.35")
+  );
+  const bob = { yoyo: true, repeat: -1, ease: "sine.inOut", transformOrigin: "50% 85%" };
+  gsap.to(".boat-bob", { y: 4, duration: 1.7, ...bob });
+  gsap.fromTo(".boat-bob", { rotation: -1.5 }, { rotation: 1.5, duration: 2.3, ...bob });
 }
 
-function initBuoys() {
-  STOP_BUOYS.forEach((buoy) => {
-    const marker = buoy.querySelector(".marker");
-    const ripple = buoy.querySelector(".ripple");
+function initBuoys(ctls) {
+  STOP_BUOYS.forEach((buoy, i) => {
+    const marker = $(".marker", buoy);
+    const ripple = $(".ripple", buoy);
     const accent = getComputedStyle(buoy).getPropertyValue("--accent").trim();
-
     const on = gsap.timeline({ paused: true, defaults: { duration: .45, ease: "back.out(2.2)" } })
       .to(buoy, { scale: 1.05 }, 0)
       .to(marker, { backgroundColor: accent, rotation: -6 }, 0);
-
-    const wave = gsap.fromTo(ripple,
-      { scale: 1, opacity: .8 },
+    const wave = gsap.fromTo(ripple, { scale: 1, opacity: .8 },
       { scale: 1.7, opacity: 0, duration: 2, ease: "power1.out", repeat: -1, paused: true });
 
+    const pin = ctls[i]?.pin;
     ScrollTrigger.create({
-      trigger: buoy, start: "center 60%", end: "center 40%",
+      ...(pin
+        ? { start: () => pin.start, end: () => Math.max(pin.end, pin.start + 1) }
+        : { trigger: buoy, start: "center 60%", end: "center 40%" }),
       onToggle: (self) => {
-        if (self.isActive) { on.play(); wave.play(0); }
-        else {
-          on.reverse(); wave.pause();
+        if (self.isActive) {
+          on.play();
+          wave.play(0);
+        } else {
+          on.reverse();
+          wave.pause();
           gsap.set(ripple, { opacity: 0 });
         }
       }
@@ -572,62 +410,37 @@ function initBuoys() {
 }
 
 function initSea() {
-  gsap.utils.toArray(".sea .idle").forEach((g, i) => {
-    const dir = i % 2 ? 1 : -1;
-    const amp = 30 + i * 6;
-    gsap.to(g, {
-      x: dir * amp,
-      y: 18 + i * 3,
-      duration: 4.5 + i * .6,
-      yoyo: true, repeat: -1,
-      ease: "sine.inOut",
-    });
-  });
+  $$(".sea .idle").forEach((g, i) => gsap.to(g, {
+    x: (i % 2 ? 1 : -1) * (30 + i * 6), y: 18 + i * 3, duration: 4.5 + i * .6, yoyo: true, repeat: -1, ease: "sine.inOut"
+  }));
 }
 
 function initPressables() {
-  const REACTIONS = {
-    pointerenter: (e, lift) => e.pointerType === "mouse" && lift(-3),
-    pointerleave: (_, lift) => lift(0),
-    pointerdown: (_, lift) => lift(-3),
-    pointerup: (e, lift) => e.pointerType !== "mouse" && lift(0),
-    pointercancel: (_, lift) => lift(0)
-  };
-  document.querySelectorAll(".links a, .to-top").forEach((el) => {
+  $$(".links a, .to-top").forEach((el) => {
     const lift = gsap.quickTo(el, "y", { duration: .25, ease: "power3.out" });
-    for (const [ev, react] of Object.entries(REACTIONS)) el.addEventListener(ev, (e) => react(e, lift));
+    el.addEventListener("pointerenter", (e) => e.pointerType === "mouse" && lift(-3));
+    el.addEventListener("pointerleave", () => lift(0));
+    el.addEventListener("pointerdown", () => lift(-3));
+    el.addEventListener("pointerup", (e) => e.pointerType !== "mouse" && lift(0));
+    el.addEventListener("pointercancel", () => lift(0));
   });
 }
 
 function initToTop() {
-  document.getElementById("toTop")?.addEventListener("click", () => {
-    if (lenis) {
-      lenis.scrollTo(0, { duration: gsap.utils.clamp(.8, 2.2, scrollY / 3000) });
-    } else if (window.gsap && window.ScrollToPlugin && !REDUCED) {
-      gsap.to(window, {
-        scrollTo: 0,
-        duration: gsap.utils.clamp(.8, 2.2, scrollY / 3000),
-        ease: "power3.inOut", overwrite: true
-      });
-    } else {
-      scrollTo({ top: 0, behavior: REDUCED ? "auto" : "smooth" });
-    }
+  $("#toTop")?.addEventListener("click", () => {
+    const duration = gsap.utils.clamp(.8, 2.2, scrollY / 3000);
+    if (lenis) lenis.scrollTo(0, { duration });
+    else if (window.ScrollToPlugin && !REDUCED) gsap.to(window, { scrollTo: 0, duration, ease: "power3.inOut", overwrite: true });
+    else scrollTo({ top: 0, behavior: REDUCED ? "auto" : "smooth" });
   });
 }
 
-decorateBuoys();
-decorateHeroTitle();
-decorateIslands();
+decorate();
 initToTop();
 
 if (window.gsap && window.ScrollTrigger && window.MotionPathPlugin && !REDUCED) {
-  gsap.registerPlugin(ScrollTrigger, MotionPathPlugin);
-  if (window.ScrollToPlugin) gsap.registerPlugin(ScrollToPlugin);
-  if (window.SplitText) {
-    gsap.registerPlugin(SplitText);
-    prepareIslandText();
-  }
-
+  gsap.registerPlugin(ScrollTrigger, MotionPathPlugin, ...[window.ScrollToPlugin, window.SplitText].filter(Boolean));
+  if (window.SplitText) prepareIslandText();
   gsap.config({ force3D: true });
 
   if (window.Lenis) {
@@ -637,18 +450,13 @@ if (window.gsap && window.ScrollTrigger && window.MotionPathPlugin && !REDUCED) 
     gsap.ticker.lagSmoothing(0);
   }
 
-  ScrollTrigger.config({
-    ignoreMobileResize: true,
-    limitCallbacks: true,
-  });
-  if (ScrollTrigger.isTouch === 1) {
-    ScrollTrigger.normalizeScroll(true);
-  }
+  ScrollTrigger.config({ ignoreMobileResize: true, limitCallbacks: true });
+  if (ScrollTrigger.isTouch === 1) ScrollTrigger.normalizeScroll(true);
 
-  const islandCtl = initIslands();
-  initBoatJourney(islandCtl);
+  const ctls = initIslands();
+  initBoatJourney(ctls);
   initHeroIntro();
-  initBuoys();
+  initBuoys(ctls);
   initSea();
   initPressables();
 }
