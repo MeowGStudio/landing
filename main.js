@@ -1,5 +1,6 @@
 const SVG_NS = "http://www.w3.org/2000/svg";
 const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
+let lenis = null;
 
 const ICONS = {
   heart: [".##..##.", "########", "########", "########", ".######.", "..####..", "...##...", "........"],
@@ -219,8 +220,6 @@ function initBoatJourney(islandCtl) {
         const prevY = i > 0 ? points[i - 1].y : 0;
         const nextY = points[i + 1]?.y;
         const appearAt = (prevY + p.y) / 2 - pad * (p.y - prevY);
-        /* La última parada no tiene "siguiente": nunca se vuelve a ocultar.
-           Se pone Infinity a mano porque pad * Infinity daría NaN cuando pad = 0. */
         const disappearAt = nextY === undefined
           ? Infinity
           : (p.y + nextY) / 2 + pad * (nextY - p.y);
@@ -256,8 +255,7 @@ function initBoatJourney(islandCtl) {
           trigger: ".buoy--start",
           start: "clamp(center center)",
           end: () => "+=" + total,
-          scrub: 1,
-          fastScrollEnd: true,
+          scrub: 2.2,
         },
       })
         .to(boat, {
@@ -443,7 +441,9 @@ function initPressables() {
 
 function initToTop() {
   document.getElementById("toTop")?.addEventListener("click", () => {
-    if (window.gsap && window.ScrollToPlugin && !REDUCED) {
+    if (lenis) {
+      lenis.scrollTo(0, { duration: gsap.utils.clamp(.8, 2.2, scrollY / 3000) });
+    } else if (window.gsap && window.ScrollToPlugin && !REDUCED) {
       gsap.to(window, {
         scrollTo: 0,
         duration: gsap.utils.clamp(.8, 2.2, scrollY / 3000),
@@ -465,6 +465,13 @@ if (window.gsap && window.ScrollTrigger && window.MotionPathPlugin && !REDUCED) 
   if (window.ScrollToPlugin) gsap.registerPlugin(ScrollToPlugin);
 
   gsap.config({ force3D: true });
+
+  if (window.Lenis) {
+    lenis = new Lenis({ lerp: .05, wheelMultiplier: .9 });
+    lenis.on("scroll", ScrollTrigger.update);
+    gsap.ticker.add((t) => lenis.raf(t * 1000));
+    gsap.ticker.lagSmoothing(0);
+  }
 
   ScrollTrigger.config({
     ignoreMobileResize: true,
