@@ -32,7 +32,9 @@ const centerOf = (el) => {
 };
 
 const pinLine = (buoy) => mobile() ? buoy.offsetHeight / 2 + Math.max(16, innerHeight * .02) : innerHeight / 2;
-const textUnit = () => mobile() ? Math.max(230, innerHeight * .34) : Math.max(300, innerHeight * .4);
+const STEP_SPAN = 4;
+const HIDE_LEAD = .5;
+const textUnit = () => mobile() ? Math.max(250, innerHeight * .4) : Math.max(300, innerHeight * .4);
 
 function decorate() {
   STOP_BUOYS.forEach((buoy) => {
@@ -144,8 +146,8 @@ function initIslandText(island) {
   const marker = $(".marker", section);
   if (!steps?.length || !marker) return null;
 
-  const enterAt = (k) => .15 + k * 1.2;
-  const duration = enterAt(steps.length - 1) + 1.4;
+  const enterAt = (k) => .15 + k * STEP_SPAN;
+  const duration = enterAt(steps.length - 1) + 1.7;
   const master = gsap.timeline({
     defaults: { ease: "none" },
     scrollTrigger: {
@@ -153,7 +155,7 @@ function initIslandText(island) {
       start: () => `center ${Math.round(pinLine(buoy))}px`,
       end: () => "+=" + duration * textUnit(),
       pin: section,
-      scrub: .6,
+      scrub: 1,
       invalidateOnRefresh: true
     }
   });
@@ -168,7 +170,7 @@ function initIslandText(island) {
     onSplit() {
       const tl = gsap.timeline();
       const reveal = (ls, items, at) => {
-        if (ls.length) tl.fromTo(ls, { yPercent: 120 }, { yPercent: 0, duration: .7, stagger: .08, ease: "power3.out" }, at);
+        if (ls.length) tl.fromTo(ls, { yPercent: 120 }, { yPercent: 0, duration: .8, stagger: .09, ease: "power3.out" }, at);
         if (items.length) tl.fromTo(items, { autoAlpha: 0, y: 16 }, { autoAlpha: 1, y: 0, duration: .5, stagger: .06, ease: "power2.out" }, at + .15);
       };
       const hide = (ls, items, at) => {
@@ -179,7 +181,7 @@ function initIslandText(island) {
         const [text, items] = stepParts(step);
         const ls = text.flatMap(lines);
         reveal(ls, items, enterAt(k));
-        if (k < steps.length - 1) hide(ls, items, enterAt(k + 1) - .45);
+        if (k < steps.length - 1) hide(ls, items, enterAt(k + 1) - HIDE_LEAD);
       });
       master.add(tl, 0);
       return tl;
