@@ -1,6 +1,6 @@
 const NS = "http://www.w3.org/2000/svg";
 const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
-const BOAT_OFFSET = 256;
+const BOAT_OFFSET = 192;
 const ROW_GAP = 12;
 const ICONS = {
   heart: ".##..##.########################.######...####.....##...........",

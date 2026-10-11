@@ -13,7 +13,7 @@
   --shadow-sm: rgb(var(--shadow-rgb)/.35);
   --shadow-text: rgb(var(--shadow-rgb)/.55);
   --font-display: "Silkscreen", "Courier New", monospace;
-  --font-body: "Fredoka", "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-body: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --radius: 4px;
   --border: 3px;
   --tap-size: 48px;
@@ -300,6 +300,7 @@ a {
   --hero-top: clamp(8.5rem, calc(8.5rem + (100vw - 390px) * .09), 13rem);
   padding-block: var(--hero-top) 12vh;
   text-align: center;
+  overflow-x: clip;
 }
 
 .stop--hero .buoy {
@@ -409,7 +410,6 @@ a {
   text-align: left;
   position: relative;
   top: -30px;
-  margin-bottom: 1.6rem;
   padding: .4rem 1.2rem;
   font: 1.7rem var(--font-display);
   background: var(--accent);
@@ -568,5 +568,14 @@ a {
 @media (max-width:760px) {
   .stop:not(.stop--hero) .buoy {
     margin-inline: calc((100% - var(--boat-w) - var(--orb) - 12px) / 2)
+  }
+}
+
+@media (max-width:760px) {
+  .tag {
+    margin-bottom: 1.1rem;
+    padding: .25rem .75rem;
+    font-size: 1.1rem;
+    border-radius: 5px
   }
 }
