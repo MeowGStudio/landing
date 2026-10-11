@@ -7,7 +7,8 @@ const ICONS = {
   flag: "#####...######..#######.######..#####...#.......#.......#.......",
   eye: "..........####...######.###..######..###.######...####..........",
   star: "...##......##...########.######...####...##..##..#....#.........",
-  mail: "........##########....###.#..#.##..##..##......#########........"
+  mail: "........##########....###.#..#.##..##..##......#########........",
+  boat: "...#.......##......###.....####....#....########.######...####.."
 };
 const HERO_SHADOWS = ["sky", "yellow", "green", "orange", "brown", "sky", "yellow"];
 const ISLAND_LAYERS = [["i-lagoon", 1], ["i-foam", .95], ["i-sand", .915], ["i-land", .89]];
@@ -30,18 +31,19 @@ const centerOf = (el) => {
   return { x: r.left + r.width / 2 + scrollX, y: r.top + r.height / 2 + scrollY };
 };
 
-const pinLine = (buoy) => mobile() ? buoy.offsetHeight / 2 + Math.max(24, innerHeight * .035) : innerHeight / 2;
+const pinLine = (buoy) => mobile() ? buoy.offsetHeight / 2 + Math.max(16, innerHeight * .02) : innerHeight / 2;
 const textUnit = () => mobile() ? Math.max(230, innerHeight * .34) : Math.max(300, innerHeight * .4);
 
 function decorate() {
   STOP_BUOYS.forEach((buoy) => {
     buoy.insertAdjacentHTML("beforeend", '<span class="ripple" aria-hidden="true"></span>');
-    const marker = $(".marker[data-icon]", buoy);
-    const icon = ICONS[marker?.dataset.icon];
-    if (icon) {
-      const rects = [...icon].map((c, i) => c === "#" ? `<rect x="${i % 8}" y="${i >> 3}" width="1" height="1"/>` : "").join("");
-      marker.innerHTML = `<svg viewBox="0 0 8 8" aria-hidden="true">${rects}</svg>`;
-    }
+  });
+
+  $$("[data-icon]").forEach((el) => {
+    const icon = ICONS[el.dataset.icon];
+    if (!icon) return;
+    const rects = [...icon].map((c, i) => c === "#" ? `<rect x="${i % 8}" y="${i >> 3}" width="1" height="1"/>` : "").join("");
+    el.innerHTML = `<svg viewBox="0 0 8 8" aria-hidden="true">${rects}</svg>`;
   });
 
   let n = 0;
@@ -413,7 +415,7 @@ function initSea() {
 }
 
 function initPressables() {
-  $$(".links a, .to-top").forEach((el) => {
+  $$(".links a").forEach((el) => {
     const lift = gsap.quickTo(el, "y", { duration: .25, ease: "power3.out" });
     el.addEventListener("pointerenter", (e) => e.pointerType === "mouse" && lift(-3));
     el.addEventListener("pointerleave", () => lift(0));
@@ -423,17 +425,59 @@ function initPressables() {
   });
 }
 
-function initToTop() {
-  $("#toTop")?.addEventListener("click", () => {
-    const duration = gsap.utils.clamp(.8, 2.2, scrollY / 3000);
-    if (lenis) lenis.scrollTo(0, { duration });
-    else if (window.ScrollToPlugin && !REDUCED) gsap.to(window, { scrollTo: 0, duration, ease: "power3.inOut", overwrite: true });
-    else scrollTo({ top: 0, behavior: REDUCED ? "auto" : "smooth" });
+function goTo(y) {
+  const duration = Math.min(2.2, Math.max(.8, Math.abs(y - scrollY) / 3000));
+  if (lenis) lenis.scrollTo(y, { duration });
+  else if (window.ScrollToPlugin && !REDUCED) gsap.to(window, { scrollTo: y, duration, ease: "power3.inOut", overwrite: true });
+  else scrollTo({ top: y, behavior: REDUCED ? "auto" : "smooth" });
+}
+
+function initHud(ctls) {
+  const slots = $$(".hud-slot");
+  const stops = $$(".stop");
+  const bar = $(".hud-xp i");
+  const footer = $(".site-footer");
+  if (!slots.length) return;
+  footer?.classList.add("is-floating");
+
+  const startOf = (i) => i
+    ? ctls[i - 1]?.pin?.start ?? centerOf($(".marker", stops[i])).y - pinLine($(".buoy", stops[i]))
+    : 0;
+  const endOf = (i) => i ? ctls[i - 1]?.pin?.end ?? startOf(i) : 0;
+  const current = (y) => stops.reduce((a, _, i) => i && y >= (endOf(i - 1) + startOf(i)) / 2 ? i : a, 0);
+
+  let active = -1;
+  const sync = (y = scrollY) => {
+    const now = current(y);
+    if (now === active) return;
+    active = now;
+    bar.style.backgroundColor = slots[now].style.getPropertyValue("--c").trim() || "var(--yellow)";
+    footer?.classList.toggle("is-visible", now === stops.length - 1);
+    slots.forEach((slot, i) => {
+      slot.classList.toggle("is-active", i === now);
+      if (i === now) slot.setAttribute("aria-current", "location");
+      else slot.removeAttribute("aria-current");
+    });
+  };
+
+  ScrollTrigger.create({
+    start: 0,
+    end: "max",
+    onUpdate: (self) => {
+      sync(self.scroll());
+      bar.style.transform = `scaleX(${self.progress})`;
+    }
   });
+  ScrollTrigger.addEventListener("refresh", () => sync());
+  sync();
+
+  slots.forEach((slot, i) => slot.addEventListener("click", (e) => {
+    e.preventDefault();
+    goTo(i ? Math.round(startOf(i)) + (ctls[i - 1]?.pin ? textUnit() : 2) : 0);
+  }));
 }
 
 decorate();
-initToTop();
 
 if (window.gsap && window.ScrollTrigger && window.MotionPathPlugin && !REDUCED) {
   gsap.registerPlugin(ScrollTrigger, MotionPathPlugin, ...[window.ScrollToPlugin, window.SplitText].filter(Boolean));
@@ -454,6 +498,7 @@ if (window.gsap && window.ScrollTrigger && window.MotionPathPlugin && !REDUCED) 
   initBoatJourney(ctls);
   initHeroIntro();
   initBuoys(ctls);
+  initHud(ctls);
   initSea();
   initPressables();
 }
